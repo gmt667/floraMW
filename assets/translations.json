@@ -1,0 +1,104 @@
+{
+  "en": {
+    "name": "English",
+    "status": "source",
+    "strings": {
+      "A little closer\nto nature.": "A little closer\nto nature.",
+      "About FloraMW": "About FloraMW",
+      "Also respects your device text size": "Also respects your device text size",
+      "Bookmarks are stored on this device.": "Bookmarks are stored on this device.",
+      "Cancel": "Cancel",
+      "Chichewa, Yao, Tumbuka, Sena, Lhomwe and Tonga are selectable. Language packs need native-speaker review. Untranslated text appears in English; Chichewa includes draft navigation.": "Chichewa, Yao, Tumbuka, Sena, Lhomwe and Tonga are selectable. Language packs need native-speaker review. Untranslated text appears in English; Chichewa includes draft navigation.",
+      "Clear local records": "Clear local records",
+      "Compare features with a botanist. These are not image predictions.": "Compare features with a botanist. These are not image predictions.",
+      "Confirm": "Confirm",
+      "Correction drafts": "Correction drafts",
+      "Dark appearance": "Dark appearance",
+      "Delete discovery": "Delete discovery",
+      "Device storage could not be opened.": "Device storage could not be opened.",
+      "Discover flowers, explore their stories and keep a journal of what you find.": "Discover flowers, explore their stories and keep a journal of what you find.",
+      "Explore the collection": "Explore the collection",
+      "Feedback & correction drafts": "Feedback & correction drafts",
+      "Field journal": "Field journal",
+      "FloraMW": "FloraMW",
+      "FloraMW · Knowledge grows with care.": "FloraMW · Knowledge grows with care.",
+      "Include the flower, leaves and whole plant. Use natural light and keep the image sharp.": "Include the flower, leaves and whole plant. Use natural light and keep the image sharp.",
+      "Larger text": "Larger text",
+      "MALAWI": "MALAWI",
+      "Make FloraMW yours": "Make FloraMW yours",
+      "Meet your next\nbotanical discovery.": "Meet your next\nbotanical discovery.",
+      "New draft": "New draft",
+      "No match": "No match",
+      "Not yet verified": "Not yet verified",
+      "Open plant profile": "Open plant profile",
+      "Photo is unavailable on this device.": "Photo is unavailable on this device.",
+      "Photo tips & help": "Photo tips & help",
+      "Plant profile": "Plant profile",
+      "Preparing a demonstration result…": "Preparing a demonstration result…",
+      "Privacy & photo handling": "Privacy & photo handling",
+      "ROOTED IN MALAWI": "ROOTED IN MALAWI",
+      "Remove photo": "Remove photo",
+      "Replay introduction": "Replay introduction",
+      "Reset filters": "Reset filters",
+      "Retake photo": "Retake photo",
+      "Retry demo request": "Retry demo request",
+      "SAMPLE RECORD · AWAITING REVIEW": "SAMPLE RECORD · AWAITING REVIEW",
+      "Sample candidates": "Sample candidates",
+      "Sample catalogue · all detailed records await review": "Sample catalogue · all detailed records await review",
+      "Save notes": "Save notes",
+      "Save preferences & explore": "Save preferences & explore",
+      "Select your district to add context to your field journal. Your choice stays on this device; GPS is not requested.": "Select your district to add context to your field journal. Your choice stays on this device; GPS is not requested.",
+      "Service error": "Service error",
+      "Skip": "Skip",
+      "Suggest a correction": "Suggest a correction",
+      "Try again": "Try again",
+      "Which district are you in?": "Which district are you in?",
+      "Your discovery starts here": "Your discovery starts here",
+      "Your district": "Your district"
+    },
+    "fallback": "en"
+  },
+  "ny": {
+    "name": "Chichewa",
+    "status": "native-review-required",
+    "strings": {
+      "Discover": "Onani",
+      "Identify": "Zindikirani",
+      "My garden": "Munda wanga",
+      "Settings": "Zokonda",
+      "Take a photo": "Jambulani chithunzi",
+      "Choose from gallery": "Sankhani chithunzi"
+    },
+    "fallback": "en"
+  },
+  "yao": {
+    "name": "Yao",
+    "status": "native-review-required",
+    "strings": {},
+    "fallback": "en"
+  },
+  "tum": {
+    "name": "Tumbuka",
+    "status": "native-review-required",
+    "strings": {},
+    "fallback": "en"
+  },
+  "seh": {
+    "name": "Sena",
+    "status": "native-review-required",
+    "strings": {},
+    "fallback": "en"
+  },
+  "ngl": {
+    "name": "Lhomwe",
+    "status": "native-review-required",
+    "strings": {},
+    "fallback": "en"
+  },
+  "tog": {
+    "name": "Tonga",
+    "status": "native-review-required",
+    "strings": {},
+    "fallback": "en"
+  }
+}
