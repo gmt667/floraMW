@@ -20,6 +20,14 @@ class AppStore extends ChangeNotifier {
           j['onboarding'] as bool? ?? prefs.getBool('onboarding') ?? false;
       district = j['district'] as String?;
       language = j['language'] as String? ?? 'en';
+      language = {'seh': 'swk', 'ngl': 'lon'}[language] ?? language;
+      final overrides = j['translations'] as Map? ?? {};
+      for (final entry in overrides.entries) {
+        translationOverrides[{'seh': 'swk', 'ngl': 'lon'}[entry.key] ??
+            entry.key as String] = Map<String, String>.from(
+          entry.value as Map,
+        );
+      }
       if (!languageNames.containsKey(language)) language = 'en';
       if (district != null && !allDistricts.contains(district)) district = null;
       dark = j['dark'] as bool? ?? false;
@@ -40,16 +48,19 @@ class AppStore extends ChangeNotifier {
         ),
       );
     } catch (_) {
-      loadWarning = 'Some local records could not be read. Avoid saving changes until you have checked your device storage.';
+      loadWarning =
+          'Some local records could not be read. Avoid saving changes until you have checked your device storage.';
     }
   }
   bool onboarding = false, dark = false, largeText = false;
   String language = 'en';
   String? district, loadWarning;
+  final Map<String, Map<String, String>> translationOverrides = {};
   final Set<String> saved = {};
   final List<Discovery> history = [];
   final List<Map<String, dynamic>> reports = [];
-  String tr(String en, String ny) => localized(language, en);
+  String tr(String en, String ny) =>
+      translationOverrides[language]?[en] ?? localized(language, en);
   Future<void> commit() async {
     final state = jsonEncode({
       'onboarding': onboarding,
@@ -60,10 +71,31 @@ class AppStore extends ChangeNotifier {
       'saved': saved.toList(),
       'history': history.map((d) => d.toJson()).toList(),
       'reports': reports,
+      'translations': translationOverrides,
     });
     if (!await prefs.setString('floramw_state', state))
       throw Exception('Device storage could not save changes.');
     notifyListeners();
+  }
+
+  Future<void> setTranslation(String code, String english, String value) async {
+    final pack = translationOverrides.putIfAbsent(code, () => {});
+    final previous = pack[english];
+    if (value.trim().isEmpty) {
+      pack.remove(english);
+    } else {
+      pack[english] = value.trim();
+    }
+    try {
+      await commit();
+    } catch (_) {
+      if (previous == null) {
+        pack.remove(english);
+      } else {
+        pack[english] = previous;
+      }
+      rethrow;
+    }
   }
 
   Future<void> toggleSave(String id) async {
@@ -145,15 +177,21 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> clearPersonalData() async {
+    final oldTranslations = {
+      for (final entry in translationOverrides.entries)
+        entry.key: Map<String, String>.from(entry.value),
+    };
     final oldHistory = List<Discovery>.from(history);
     final oldSaved = Set<String>.from(saved);
     final oldReports = List<Map<String, dynamic>>.from(reports);
     history.clear();
     saved.clear();
     reports.clear();
+    translationOverrides.clear();
     try {
       await commit();
     } catch (_) {
+      translationOverrides.addAll(oldTranslations);
       history.addAll(oldHistory);
       saved.addAll(oldSaved);
       reports.addAll(oldReports);

@@ -22,3 +22,10 @@ ios/Pods/
 ios/.symlinks/
 .DS_Store
 __pycache__/
+.gradle/
+.kotlin/
+.cxx/
+android/app/debug/
+android/app/profile/
+android/app/release/
+test/failures/

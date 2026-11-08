@@ -1,0 +1,69 @@
+name: FloraMW frontend
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  CI: 'true'
+  BOT: 'true'
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: dart format --output=none --set-exit-if-changed lib test tool/check_models.dart
+      - run: flutter analyze --no-pub
+      - run: flutter test --no-pub
+      - run: dart tool/check_models.dart
+      - run: python3 tool/check_assets.py
+  android:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Install Android build components
+        run: >-
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "platforms;android-35" "platforms;android-36"
+          "build-tools;35.0.0" "build-tools;36.0.0"
+          "ndk;28.2.13676358" "cmake;3.22.1"
+      - run: flutter build apk --debug --no-pub
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FloraMW-Android-demo
+          path: build/app/outputs/flutter-apk/app-debug.apk
+  ios-simulator:
+    needs: verify
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter build ios --simulator --debug --no-codesign --no-pub

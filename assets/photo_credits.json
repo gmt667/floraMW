@@ -1,0 +1,38 @@
+{
+  "periwinkle": {
+    "photographer": "Ton Rulkens",
+    "caption": "close up of 2 pink, pinwheel flowers with dark pink eyes.",
+    "source": "https://plants.ces.ncsu.edu/plants/catharanthus-roseus/",
+    "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+    "license": "CC-BY-SA 2.0",
+    "changes": "Bundled original; displayed with responsive crop in the interface.",
+    "asset": "assets/plants/periwinkle.jpg"
+  },
+  "marigold": {
+    "photographer": "Forest and Kim Starr",
+    "caption": "Photo of Tagetes erecta",
+    "source": "https://plants.ces.ncsu.edu/plants/tagetes-erecta/",
+    "license_url": "http://creativecommons.org/licenses/by/2.0/legalcode",
+    "license": "CC BY 2.0",
+    "changes": "Bundled original; displayed with responsive crop in the interface.",
+    "asset": "assets/plants/marigold.jpg"
+  },
+  "hibiscus": {
+    "photographer": "mauroguanandi",
+    "caption": "Yellow flower with central staminal tube and stigmas.",
+    "source": "https://plants.ces.ncsu.edu/plants/hibiscus-rosa-sinensis/",
+    "license_url": "http://creativecommons.org/licenses/by/2.0/legalcode",
+    "license": "CC BY 2.0",
+    "changes": "Bundled original; displayed with responsive crop in the interface.",
+    "asset": "assets/plants/hibiscus.jpg"
+  },
+  "frangipani": {
+    "photographer": "Denis Conrado",
+    "caption": "Plumeria rubra flower",
+    "source": "https://commons.wikimedia.org/wiki/File:Plumeria_rubra.jpg",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "license": "CC BY-SA 3.0",
+    "changes": "Bundled original; displayed with responsive crop in the interface.",
+    "asset": "assets/plants/frangipani.jpg"
+  }
+}

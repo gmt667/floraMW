@@ -1,81 +1,74 @@
-# FloraMW — Flutter mobile frontend
+# FloraMW
 
-A Malawi-focused, offline-first frontend for Android and iOS. Forest-green Material 3 styling, camera/gallery capture, complete demonstration identification journey, structured plant profiles and a persistent local field journal.
+A Flutter mobile frontend for a Malawi-focused botanical companion. Photograph a flower, explore a clearly labelled demonstration identification journey, browse source-linked reference profiles and keep a local field journal.
 
-## Run on your computer
+**Frontend only:** no backend services, live AI, server uploads, cloud sync or feedback submission are implemented or changed.
 
-Install the Flutter stable SDK and Android Studio (Android) or Xcode on macOS (iOS). From this project folder:
+## Run
+
+Use Flutter **3.47.9**, a compatible Android SDK/Java setup, or macOS/Xcode for iOS. Native Android and iOS runner projects are included.
 
 ```sh
-flutter create --platforms=android,ios --org mw.floramw --project-name floramw --no-pub .
-flutter pub get
-python -m pip install pillow
-python tool/brand_platforms.py
-flutter analyze
-flutter test
+flutter pub get --enforce-lockfile
+flutter analyze --no-pub
+flutter test --no-pub
 flutter run
 ```
 
-These commands generate the standard native runner projects locally. Retain the supplied `lib`, `assets`, `test` and `pubspec.yaml`; do not use `flutter create --overwrite`. `brand_platforms.py` applies FloraMW launcher icons, launch-screen branding and iOS camera/photo descriptions to generated runners. It uses the supplied `assets/icon.png`. Camera testing requires a configured physical device. The app itself shows branded startup, welcome and setup screens.
-
-To produce an Android package after device validation:
+For an installable development build:
 
 ```sh
-flutter build apk --release
+flutter build apk --debug --no-pub
 ```
 
-An iOS archive must be built and signed on macOS. Set your own production application identifier and signing before store distribution.
+The APK is created at `build/app/outputs/flutter-apk/app-debug.apk`. Production signing is deliberately separate; see [release instructions](docs/RELEASE.md). No production signing key is included. Camera/gallery testing needs a configured device.
 
-## Implemented frontend
+## Frontend features
 
-- FloraMW app name, leaf icon asset, branded startup and three introduction pages.
-- First-run district and language setup. Searchable list of all 28 Malawi districts, grouped into Northern (6), Central (9) and Southern (13). District preference persists and is captured on saved discoveries. No GPS permission requested.
-- Selectable English, Chichewa, Yao, Tumbuka, Sena, Lhomwe and Tonga. Resource-backed visible text, English fallback and an on-screen translation-status notice. **This is a localization framework, not seven completed translations.** Chichewa has draft navigation. Other requested packs are selectable but await native translations and review. Field hints, botanical prose and dynamic status text also require localization review.
-- Discover with common/scientific/family search, clear action, category chips, A–Z/Z–A sorting and no-results/reset state.
-- Camera/gallery consent explanation, system picker, selected-photo preview, removal, permission/access errors and Android lost-image recovery.
-- Demo identification service with loading, cancellation, candidates, no-match, retry, and service-error states. Demo outcomes are independent of the photo and clearly labelled. No invented confidence scores.
-- Plant profiles with save action, scientific name/family, local knowledge, medicinal research, Malawi occurrence, growing conditions, care, effects/precautions, legal/conservation and source/review sections.
-- Persistent bookmarks, discovery history, app-private photo copies, district, editable journal notes and deletion.
-- Correction form validation, optional reference, local draft saving, draft list and deletion. Nothing is submitted to a server.
-- Settings for language, district, dark mode, larger text, replay introduction, privacy, help, about and deletion of all local records.
-- Empty states, missing-photo fallback, accessible control tooltips, scrollable screens, system font scaling, offline bundled catalogue and storage-error messages.
+- Branded native launch screens, app icons, welcome pages and first-run district/language setup.
+- Searchable list of all 28 Malawi districts, grouped by region. The selected district persists and is recorded with discoveries; no GPS permission is requested.
+- Discover search by common name, scientific name or family, categories, sorting and empty/reset state.
+- Camera/gallery selection, photo preview/removal, consent explanation, permission failures and Android lost-image recovery.
+- Demonstration identification with loading, cancellation, candidate lists, no match, service error and retry. Demo candidates are independent of the selected photograph. No invented confidence score is shown.
+- Reference profiles with licensed photographs, source links, scientific names/families, identifying features, plant care, growing conditions, toxicity, medicinal research and legal/conservation information.
+- Scientific evidence and Malawian traditional knowledge remain separate. Malawi district occurrence, community-attributed uses and local names await field verification rather than being invented.
+- Persistent bookmarks, discovery photos, district snapshots, history, editable notes and deletion.
+- Correction form, local report drafts and draft deletion. Reports are not sent to a server.
+- Language/district settings, dark mode, larger text, privacy/help/about, replay introduction and clear local records.
+- Scrollable narrow-screen layouts, bundled fonts, accessible control tooltips, offline reference content and recoverable error states.
 
-## Important scope boundaries
+## Language status
 
-AI inference, server APIs, authenticated accounts, cloud synchronization and feedback delivery are not connected. All catalogue records are sample data. No medical, traditional-use, local occurrence or legal claim is asserted as verified. Source/review fields are visible placeholders rather than fabricated evidence. Real content and complete native translations need qualified review before public release.
+The language selector and translation framework cover **English, Chichewa, Yao, Tumbuka, Sena, Lhomwe and Tonga**. Chichewa includes draft navigation wording. Full translations are **not complete**; unreviewed/missing phrases fall back to English with a visible notice.
 
-No network calls, location collection or analytics are implemented. SharedPreferences stores local structured state; app-private document storage holds saved photo copies. Operating-system backup behavior still applies. This is convenience storage for an educational frontend, not an encrypted health-record system.
+Settings → Language packs & translation review displays available/missing interface phrases and supports persistent local wording edits. This is an authoring/review aid, not a claim of translation accuracy or a remote submission system. See [localization guidance](LOCALIZATION.md).
 
-## Validation completed here
+## Content and image sources
 
-- Dart formatter parsed and formatted all source and test files successfully.
-- Nine local-only Dart checks passed: distinct district count, regional counts, requested language choices, English fallback, district/journal serialization, demo candidate labeling, no-match, service error, and complete profile section structure.
-- Python checked the translation JSON, referenced source imports, icon asset, Python branding-script syntax, and archive integrity.
+General botanical summaries link to NC State Extension, Kew and Singapore National Parks. Periwinkle research links to the US National Cancer Institute; safety information links to Queensland Health and the University of California. Malawi medicine-regulation context links to PMRA. These are educational summaries, not personalized medical advice, a botanist-confirmed identification or permission to harvest/sell plants.
 
-Flutter widget tests are included for persistence, welcome/district setup and no-match flow. **They were not executed.** Flutter analysis, native runner generation, compilation, emulator/device tests and APK/IPA builds remain unverified. Automatic approval review blocked Flutter's platform-generation command when the SDK attempted to contact a cloud metadata endpoint. No attempt was made to bypass that boundary. Generate runners and run the checks above in your own configured Flutter environment.
+Photographs are bundled under their stated Creative Commons licences, with on-screen author/source/licence links. See [image and font notices](THIRD_PARTY_NOTICES.md). The selected district and a reference photograph do not establish that a species occurs locally.
 
-## Files
+## Validation
 
-- `lib/main.dart`: app startup, themes, onboarding and discover shell.
-- `lib/preferences.dart`: first-run setup and searchable district selector.
-- `lib/locale_data.dart`: district identifiers and language labels.
-- `lib/localization.dart`, `assets/translations.json`: translation lookup and English fallback.
-- `lib/models.dart`: sample catalogue, journal models and identification interface/demo.
-- `lib/store.dart`: local persistence, journal photos and record deletion.
-- `lib/screens/`: identify, profile/corrections, garden/journal and settings/help/privacy.
-- `tool/check_models.dart`: local-only executable model checks.
-- `tool/brand_platforms.py`: native runner branding/configuration.
-- `test/frontend_test.dart`: Flutter tests to run locally.
-- `API_HANDOFF.md`: backend integration seam and verified-content requirements.
-- `QA_CHECKLIST.md`: physical-device acceptance checks.
+- Flutter analysis and local widget/state/layout/screenshot checks are exercised by the included test suite.
+- Standalone model checks: `dart tool/check_models.dart`.
+- Asset/licence/native-metadata checks: `python3 tool/check_assets.py`.
+- GitHub Actions workflow: [frontend.yml](.github/workflows/frontend.yml). It verifies the frontend, builds a debug Android APK and prepares an unsigned iOS simulator build. It does not publish or change a backend.
+- Checked-in screenshots are Flutter test-rendered references, not physical-device screenshots: [Discover](docs/screenshots/discover.png), [Identify](docs/screenshots/identify.png), [Plant profile](docs/screenshots/profile.png).
 
-## Reference documentation
+See [current validation results](docs/VALIDATION.md) and the [device acceptance checklist](QA_CHECKLIST.md). Physical camera/gallery behavior, screen readers, representative low-end devices, iOS signing and App Store publication require separate device/platform validation.
 
-- Flutter: https://docs.flutter.dev/get-started
-- Image picker setup: https://pub.dev/packages/image_picker
-- Preferences: https://pub.dev/packages/shared_preferences
-- App-private directories: https://pub.dev/packages/path_provider
-- District list cross-check: https://gadm.org/maps/MWI_1.html
-- Malawi local-government guidebook: https://www.resakss.org/sites/default/files/Malawi%20MLGRD%202013%20Guidebook%20on%20the%20Local%20Government%20System%20in%20Malawi.pdf
+## Structure
 
-Use current official package documentation for platform minimums. Flutter dependency resolution selects compatible versions from pubspec constraints; a lockfile must be generated by `flutter pub get` before a reproducible release build.
+- `lib/main.dart`: startup, themes, onboarding, home shell and discovery.
+- `lib/preferences.dart`, `lib/locale_data.dart`: district/language setup and identifiers.
+- `lib/localization.dart`, `assets/translations.json`: translated text and fallback.
+- `lib/models.dart`: reference catalogue, journal models and unchanged demo identification interface.
+- `lib/store.dart`: local persistence and app-owned photo lifecycle.
+- `lib/screens/`: identify, profiles/corrections, journal, settings and language review.
+- `android/`, `ios/`: native frontend runners and permission/build configuration.
+- `test/`, `tool/`: automated checks, visual references and branding helper.
+- `API_HANDOFF.md`: existing backend handoff requirements; no live API connection added.
+
+Useful documentation: [Flutter](https://docs.flutter.dev/), [image_picker](https://pub.dev/packages/image_picker), [shared_preferences](https://pub.dev/packages/shared_preferences), [path_provider](https://pub.dev/packages/path_provider), [url_launcher](https://pub.dev/packages/url_launcher).

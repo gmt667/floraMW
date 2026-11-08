@@ -3,6 +3,8 @@ import 'localization.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'models.dart';
 
@@ -15,15 +17,22 @@ class PlantArt extends StatelessWidget {
   const PlantArt(this.plant, {super.key, this.height = 180});
   @override
   Widget build(BuildContext context) => Semantics(
-    label: 'Illustration of ${plant.name}, not an identification photograph',
-    child: Container(
-      height: height,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: const Color(0xffe4eadb),
-        borderRadius: BorderRadius.circular(24),
+    label: 'Reference photograph of ${plant.name}; not a match for your photo',
+    image: true,
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Image.asset(
+        plant.photoAsset,
+        height: height,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          height: height,
+          alignment: Alignment.center,
+          color: const Color(0xffe4eadb),
+          child: Icon(Icons.local_florist_outlined, size: 56, color: forest),
+        ),
       ),
-      child: FloraText(plant.symbol, style: TextStyle(fontSize: height * .48)),
     ),
   );
 }
@@ -37,6 +46,7 @@ class PhotoView extends StatelessWidget {
     borderRadius: BorderRadius.circular(24),
     child: Image.file(
       File(path),
+      semanticLabel: 'Selected flower photograph',
       height: height,
       width: double.infinity,
       fit: BoxFit.cover,
@@ -107,7 +117,11 @@ class PlantTile extends StatelessWidget {
     elevation: 0,
     child: ListTile(
       contentPadding: const EdgeInsets.all(14),
-      leading: FloraText(plant.symbol, style: const TextStyle(fontSize: 36)),
+      leading: SizedBox(
+        width: 56,
+        height: 56,
+        child: PlantArt(plant, height: 56),
+      ),
       title: FloraText(
         plant.name,
         style: const TextStyle(fontWeight: FontWeight.w600),
@@ -141,9 +155,9 @@ Future<bool> confirm(BuildContext context, String title, String body) async =>
       ),
     ) ??
     false;
-void message(BuildContext context, String text) =>
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: FloraText(text)));
+void message(BuildContext context, String text) => ScaffoldMessenger.of(
+  context,
+).showSnackBar(SnackBar(content: FloraText(text)));
 Future<void> guarded(
   BuildContext context,
   Future<void> Function() action, {
@@ -159,4 +173,37 @@ Future<void> guarded(
         'Could not save changes. Check available device storage and try again.',
       );
   }
+}
+
+class SourceLink extends StatelessWidget {
+  final String title, url;
+  const SourceLink(this.title, this.url, {super.key});
+  @override
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    title: FloraText(title),
+    subtitle: FloraText(Uri.parse(url).host),
+    leading: const Icon(Icons.open_in_new),
+    trailing: IconButton(
+      tooltip: 'Copy source link',
+      icon: const Icon(Icons.copy_outlined),
+      onPressed: () async {
+        await Clipboard.setData(ClipboardData(text: url));
+        if (context.mounted) message(context, 'Link copied.');
+      },
+    ),
+    onTap: () async {
+      try {
+        final success = await launchUrl(
+          Uri.parse(url),
+          mode: LaunchMode.externalApplication,
+        );
+        if (!success && context.mounted)
+          message(context, 'Could not open browser. Use the copy link button.');
+      } catch (_) {
+        if (context.mounted)
+          message(context, 'Could not open browser. Use the copy link button.');
+      }
+    },
+  );
 }

@@ -90,7 +90,8 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
     } catch (_) {
       if (mounted && request == generation)
         setState(
-          () => error = 'The demo request failed. Your photo is still available. Retry or choose a different demo outcome.',
+          () => error =
+              'The demo request failed. Your photo is still available. Retry or choose a different demo outcome.',
         );
     } finally {
       if (mounted && request == generation) setState(() => busy = false);
@@ -169,7 +170,7 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
         'DEMO MODE · No AI is connected. Sample candidates do not depend on your photo. No confidence percentages are fabricated.',
       ),
       DropdownButtonFormField<DemoOutcome>(
-        value: outcome,
+        initialValue: outcome,
         decoration: const InputDecoration(labelText: 'Preview result state'),
         items: const [
           DropdownMenuItem(

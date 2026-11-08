@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:flutter/services.dart';
+
 import '../localization.dart';
 
 import 'package:flutter/material.dart';
@@ -36,7 +40,7 @@ class ProfileScreen extends StatelessWidget {
           PlantArt(plant),
           const SizedBox(height: 20),
           const FloraText(
-            'SAMPLE RECORD · AWAITING REVIEW',
+            'REFERENCE PROFILE · NOT A PHOTO MATCH',
             style: TextStyle(fontSize: 11, letterSpacing: 1.5),
           ),
           const SizedBox(height: 12),
@@ -58,16 +62,24 @@ class ProfileScreen extends StatelessWidget {
           FloraText(plant.description, style: const TextStyle(height: 1.6)),
           const SizedBox(height: 12),
           const Notice(
-            'This profile is not a confirmed match for your photo. Medicinal, cultural, growing and legal details require verified sources.',
+            'This reference profile is not a confirmed match for your photo. General summaries link to public sources; local knowledge and Malawi distribution still need field review.',
           ),
           ...plant.sections.entries.map(
             (e) => Card(
               elevation: 0,
               child: ExpansionTile(
                 title: FloraText(e.key),
-                subtitle: const FloraText(
-                  'Not yet verified',
-                  style: TextStyle(fontSize: 11),
+                subtitle: FloraText(
+                  [
+                        'Local names & knowledge',
+                        'Malawi distribution',
+                      ].contains(e.key)
+                      ? 'Local verification pending'
+                      : e.key == 'Medicinal research' &&
+                            plant.id != 'periwinkle'
+                      ? 'No treatment claim'
+                      : 'Source-linked educational information',
+                  style: const TextStyle(fontSize: 11),
                 ),
                 children: [
                   Padding(
@@ -81,6 +93,16 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 20),
+          Semantics(
+            header: true,
+            child: FloraText(
+              'Sources & image credit',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+          ...plant.sources.map((s) => SourceLink(s.title, s.url)),
+          PhotoCredits(plantId: plant.id),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: () => Navigator.push(
@@ -131,7 +153,7 @@ class _ReportScreenState extends State<ReportScreen> {
             'Reports are saved on this device only. A submission service is not connected; no report will be sent.',
           ),
           DropdownButtonFormField<String>(
-            value: category,
+            initialValue: category,
             decoration: const InputDecoration(labelText: 'Topic'),
             items:
                 [
@@ -200,5 +222,28 @@ class _ReportScreenState extends State<ReportScreen> {
         ],
       ),
     ),
+  );
+}
+
+class PhotoCredits extends StatelessWidget {
+  final String plantId;
+  const PhotoCredits({super.key, required this.plantId});
+  @override
+  Widget build(BuildContext context) => FutureBuilder<String>(
+    future: rootBundle.loadString('assets/photo_credits.json'),
+    builder: (context, snapshot) {
+      if (!snapshot.hasData) return const SizedBox.shrink();
+      final item = (jsonDecode(snapshot.data!) as Map)[plantId] as Map?;
+      if (item == null) return const SizedBox.shrink();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FloraText('Photo: ${item['photographer']} · ${item['license']}'),
+          FloraText(item['changes'] as String),
+          SourceLink('Photograph source', item['source'] as String),
+          SourceLink('Image reuse licence', item['license_url'] as String),
+        ],
+      );
+    },
   );
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../store.dart';
 import '../locale_data.dart';
 import '../preferences.dart';
+import 'translations.dart';
 import '../ui.dart';
 import 'profile.dart';
 
@@ -29,7 +30,7 @@ class SettingsScreen extends StatelessWidget {
         'Offline-ready frontend · the sample catalogue and saved records work without internet. Live AI and cloud sync are not connected.',
       ),
       DropdownButtonFormField<String>(
-        value: store.language,
+        initialValue: store.language,
         isExpanded: true,
         decoration: const InputDecoration(labelText: 'Preferred language'),
         items: languageNames.entries
@@ -76,6 +77,18 @@ class SettingsScreen extends StatelessWidget {
           await store.commit();
         }),
       ),
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.translate),
+        title: const FloraText('Language packs & translation review'),
+        subtitle: const FloraText('Review coverage and save local wording'),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => TranslationScreen(store: store),
+          ),
+        ),
+      ),
       const Divider(),
       ListTile(
         contentPadding: EdgeInsets.zero,
@@ -85,7 +98,7 @@ class SettingsScreen extends StatelessWidget {
         onTap: () => info(
           context,
           'Privacy & photo handling',
-          'FloraMW stores preferences, bookmarks, journal notes and report drafts locally. Photos are copied into app-private storage only when you save a discovery. Camera/gallery selections can also exist in operating-system caches. This frontend sends no photos, location or notes to a server and includes no advertising or analytics. Device backups may include app data according to your operating-system settings. Deleting a discovery removes its app-owned photo; it does not remove your original gallery photo. Clear local data below to delete saved discoveries, bookmarks and draft reports. Uninstalling and backup restoration follow your device policies. A real AI service must explain its retention and request upload consent before activation.',
+          'FloraMW stores preferences, bookmarks, journal notes and report drafts locally. Photos are copied into app-private storage only when you save a discovery. Camera/gallery selections can also exist in operating-system caches. This frontend sends no photos, location or notes to a server and includes no advertising or analytics. Device backups may include app data according to your operating-system settings. Deleting a discovery removes its app-owned photo; it does not remove your original gallery photo. Clear local records below to delete saved discoveries, bookmarks, draft reports and local translation edits. External reference links open your browser and are subject to the source website’s privacy practices. Uninstalling and backup restoration follow your device policies. A real AI service must explain its retention and request upload consent before activation.',
         ),
       ),
       ListTile(
@@ -123,7 +136,17 @@ class SettingsScreen extends StatelessWidget {
         onTap: () => info(
           context,
           'FloraMW',
-          'A Malawi-focused botanical companion. Version 1.0.0 frontend demonstration. Built with Flutter and Dart for Android and iOS. Sample illustrations are decorative, not reference photographs. No real AI, approved treatment guidance, verified local catalogue or legal advice is included.',
+          'A Malawi-focused botanical companion. Version 1.0.0 frontend demonstration. Built with Flutter and Dart for Android and iOS. Reference photographs include attribution and reuse licences. No live AI or personalized treatment advice is included. General botanical summaries link to sources; local traditional uses and district occurrence await review.',
+        ),
+      ),
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.description_outlined),
+        title: const FloraText('Open-source licences'),
+        onTap: () => showLicensePage(
+          context: context,
+          applicationName: 'FloraMW',
+          applicationVersion: '1.0.0',
         ),
       ),
       const SizedBox(height: 12),
@@ -132,7 +155,7 @@ class SettingsScreen extends StatelessWidget {
           if (!await confirm(
             context,
             'Clear all local records?',
-            'Delete bookmarks, discovery photos, notes and report drafts. Appearance and language preferences will remain.',
+            'Delete bookmarks, discovery photos, notes and report drafts. Appearance, district and language preferences will remain. Your local translation edits will also be deleted.',
           ))
             return;
           if (context.mounted)

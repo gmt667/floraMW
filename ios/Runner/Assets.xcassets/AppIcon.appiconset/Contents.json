@@ -1,0 +1,122 @@
+{
+  "images": [
+    {
+      "size": "20x20",
+      "idiom": "iphone",
+      "filename": "FloraMW-0-40.png",
+      "scale": "2x"
+    },
+    {
+      "size": "20x20",
+      "idiom": "iphone",
+      "filename": "FloraMW-1-60.png",
+      "scale": "3x"
+    },
+    {
+      "size": "29x29",
+      "idiom": "iphone",
+      "filename": "FloraMW-2-29.png",
+      "scale": "1x"
+    },
+    {
+      "size": "29x29",
+      "idiom": "iphone",
+      "filename": "FloraMW-3-58.png",
+      "scale": "2x"
+    },
+    {
+      "size": "29x29",
+      "idiom": "iphone",
+      "filename": "FloraMW-4-87.png",
+      "scale": "3x"
+    },
+    {
+      "size": "40x40",
+      "idiom": "iphone",
+      "filename": "FloraMW-5-80.png",
+      "scale": "2x"
+    },
+    {
+      "size": "40x40",
+      "idiom": "iphone",
+      "filename": "FloraMW-6-120.png",
+      "scale": "3x"
+    },
+    {
+      "size": "60x60",
+      "idiom": "iphone",
+      "filename": "FloraMW-7-120.png",
+      "scale": "2x"
+    },
+    {
+      "size": "60x60",
+      "idiom": "iphone",
+      "filename": "FloraMW-8-180.png",
+      "scale": "3x"
+    },
+    {
+      "size": "20x20",
+      "idiom": "ipad",
+      "filename": "FloraMW-9-20.png",
+      "scale": "1x"
+    },
+    {
+      "size": "20x20",
+      "idiom": "ipad",
+      "filename": "FloraMW-10-40.png",
+      "scale": "2x"
+    },
+    {
+      "size": "29x29",
+      "idiom": "ipad",
+      "filename": "FloraMW-11-29.png",
+      "scale": "1x"
+    },
+    {
+      "size": "29x29",
+      "idiom": "ipad",
+      "filename": "FloraMW-12-58.png",
+      "scale": "2x"
+    },
+    {
+      "size": "40x40",
+      "idiom": "ipad",
+      "filename": "FloraMW-13-40.png",
+      "scale": "1x"
+    },
+    {
+      "size": "40x40",
+      "idiom": "ipad",
+      "filename": "FloraMW-14-80.png",
+      "scale": "2x"
+    },
+    {
+      "size": "76x76",
+      "idiom": "ipad",
+      "filename": "FloraMW-15-76.png",
+      "scale": "1x"
+    },
+    {
+      "size": "76x76",
+      "idiom": "ipad",
+      "filename": "FloraMW-16-152.png",
+      "scale": "2x"
+    },
+    {
+      "size": "83.5x83.5",
+      "idiom": "ipad",
+      "filename": "FloraMW-17-167.png",
+      "scale": "2x"
+    },
+    {
+      "size": "1024x1024",
+      "idiom": "ios-marketing",
+      "filename": "FloraMW-18-1024.png",
+      "scale": "1x"
+    }
+  ],
+  "info": {
+    "version": 1,
+    "author": "xcode"
+  }
+}

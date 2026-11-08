@@ -41,8 +41,8 @@ const languageNames = <String, String>{
   'ny': 'Chichewa',
   'yao': 'Yao',
   'tum': 'Tumbuka',
-  'seh': 'Sena',
-  'ngl': 'Lhomwe',
+  'swk': 'Sena',
+  'lon': 'Lhomwe',
   'tog': 'Tonga',
 };
 
@@ -61,8 +61,8 @@ const navigationTranslations = <String, Map<String, String>>{
   },
   'yao': {},
   'tum': {},
-  'seh': {},
-  'ngl': {},
+  'swk': {},
+  'lon': {},
   'tog': {},
 };
 String localized(String language, String english) =>

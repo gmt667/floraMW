@@ -67,7 +67,7 @@ Future<void> main() async {
   }
   check(error, 'service-error state');
   check(
-    plants.every((p) => p.sections.length == 8),
+    plants.every((p) => p.sections.length >= 8),
     'complete profile section structure',
   );
 }

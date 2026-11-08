@@ -44,9 +44,11 @@ class FloraText extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
-    final language = FloraScope.maybeOf(context)?.language ?? 'en';
+    final store = FloraScope.maybeOf(context);
+    final language = store?.language ?? 'en';
     return Text(
-      TranslationCatalog.translate(language, data),
+      store?.translationOverrides[language]?[data] ??
+          TranslationCatalog.translate(language, data),
       style: style,
       textAlign: textAlign,
       maxLines: maxLines,

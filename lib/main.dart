@@ -1,6 +1,8 @@
 import 'localization.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models.dart';
@@ -15,6 +17,11 @@ import 'screens/settings.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'Roboto',
+    ], await rootBundle.loadString('assets/fonts/LICENSE.txt'));
+  });
   runApp(const Bootstrap());
 }
 
@@ -97,6 +104,9 @@ class FloraMWApp extends StatelessWidget {
   const FloraMWApp({super.key, required this.store});
   ThemeData theme(Brightness brightness) => ThemeData(
     useMaterial3: true,
+    fontFamily: "FloraSans",
+    materialTapTargetSize: MaterialTapTargetSize.padded,
+    visualDensity: VisualDensity.standard,
     brightness: brightness,
     colorScheme: ColorScheme.fromSeed(
       seedColor: forest,
@@ -116,6 +126,7 @@ class FloraMWApp extends StatelessWidget {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+        minimumSize: const Size(48, 48),
       ),
     ),
   );
@@ -446,8 +457,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         const SizedBox(height: 14),
         FloraText(
           'A little closer\nto nature.',
-          style: Theme.of(context).textTheme.displaySmall
-              ?.copyWith(fontWeight: FontWeight.w600, letterSpacing: -1),
+          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: -1,
+          ),
         ),
         const SizedBox(height: 14),
         const FloraText(
@@ -510,11 +523,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ],
         ),
         const FloraText(
-          'Sample catalogue · all detailed records await review',
+          'Reference catalogue · local knowledge awaits review',
           style: TextStyle(fontSize: 12),
         ),
         const SizedBox(height: 16),
         TextField(
+          key: const ValueKey("catalog-search"),
           controller: search,
           onChanged: (v) => setState(() => query = v),
           decoration: InputDecoration(

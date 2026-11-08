@@ -128,7 +128,7 @@ class _SetupScreenState extends State<SetupScreen> {
         ),
         const SizedBox(height: 24),
         DropdownButtonFormField<String>(
-          value: language,
+          initialValue: language,
           isExpanded: true,
           decoration: const InputDecoration(labelText: 'Preferred language'),
           items: languageNames.entries
