@@ -50,10 +50,14 @@ app = FastAPI(
 )
 
 # Configure CORS
+# When CORS_ORIGINS is the development wildcard ["*"], credentials must be False
+# (the CORS spec forbids wildcard origins paired with allow_credentials=True; browsers
+# reject such responses). In production, override CORS_ORIGINS with an explicit list of
+# known origins and set CORS_ALLOW_CREDENTIALS=True in the environment.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -15,7 +15,18 @@ class Settings(BaseSettings):
     DATABASE_URL: str = f"sqlite+aiosqlite:///{BACKEND_DIR / 'floramw.db'}"
 
     # CORS Origins
+    # In development the wildcard default is acceptable for mobile clients (no browser CORS check).
+    # For production or Flutter Web, set this to an explicit list of allowed origins, e.g.:
+    #   CORS_ORIGINS='["https://app.floramw.com"]'
     CORS_ORIGINS: List[str] = ["*"]
+
+    # Whether to send CORS credentials (cookies, Authorization headers) in cross-origin responses.
+    # Must be False when CORS_ORIGINS contains "*" — the CORS specification prohibits wildcard
+    # origins with credentials, and browsers reject such responses.
+    # Set True only when CORS_ORIGINS is an explicit list of known origins (never with ["*"]).
+    # Default: False (safe with wildcard origins). Override to True in production alongside
+    # an explicit CORS_ORIGINS list.
+    CORS_ALLOW_CREDENTIALS: bool = False
 
     # Sync & Retention Parameters
     SYNC_TOMBSTONE_RETENTION_DAYS: int = 90

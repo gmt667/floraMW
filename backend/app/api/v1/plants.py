@@ -5,7 +5,7 @@ and pagination. All data matches the frontend contract in lib/models.dart.
 """
 
 from math import ceil
-from typing import Optional
+from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
@@ -36,8 +36,12 @@ async def list_plants(
     category: Optional[str] = Query(
         None, description="Filter by category (e.g. 'Garden flowers')"
     ),
-    sort: Optional[str] = Query(
-        "name_asc", description="Sort order: 'name_asc' or 'name_desc'"
+    sort: Literal["name_asc", "name_desc"] = Query(
+        "name_asc",
+        description=(
+            "Sort order: 'name_asc' (A to Z, default) or 'name_desc' (Z to A). "
+            "Unsupported values are rejected with HTTP 422."
+        ),
     ),
     page: int = Query(1, ge=1, description="Page number (1-based)"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),

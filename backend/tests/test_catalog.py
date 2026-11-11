@@ -261,3 +261,41 @@ async def test_get_plant_not_found(client: AsyncClient):
     resp = await client.get("/api/v1/plants/royal-fern-does-not-exist")
     assert resp.status_code == 404
     assert "detail" in resp.json()
+
+
+# ---------------------------------------------------------------------------
+# F-2: sort parameter validation
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_list_plants_sort_name_asc_order(client: AsyncClient):
+    """sort=name_asc returns plants in ascending alphabetical order by common name."""
+    resp = await client.get("/api/v1/plants", params={"sort": "name_asc"})
+    assert resp.status_code == 200
+    names = [p["name"] for p in resp.json()["items"]]
+    assert names == sorted(names)
+
+
+@pytest.mark.asyncio
+async def test_list_plants_sort_name_desc_order(client: AsyncClient):
+    """sort=name_desc returns plants in descending alphabetical order by common name."""
+    resp = await client.get("/api/v1/plants", params={"sort": "name_desc"})
+    assert resp.status_code == 200
+    names = [p["name"] for p in resp.json()["items"]]
+    assert names == sorted(names, reverse=True)
+
+
+@pytest.mark.asyncio
+async def test_list_plants_sort_omitted_defaults_to_name_asc(client: AsyncClient):
+    """Omitting sort defaults to name_asc (alphabetical A to Z)."""
+    resp = await client.get("/api/v1/plants")
+    assert resp.status_code == 200
+    names = [p["name"] for p in resp.json()["items"]]
+    assert names == sorted(names)
+
+
+@pytest.mark.asyncio
+async def test_list_plants_invalid_sort_returns_422(client: AsyncClient):
+    """Unsupported sort value is rejected with HTTP 422."""
+    resp = await client.get("/api/v1/plants", params={"sort": "alphabetical"})
+    assert resp.status_code == 422

@@ -22,6 +22,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 import io
 import os
+from pathlib import Path
 import shutil
 import sqlite3
 import tempfile
@@ -463,8 +464,9 @@ class TestMigration0005Roundtrip:
         settings.DATABASE_URL = test_url
 
         try:
-            cfg = Config("backend/alembic.ini")
-            cfg.set_main_option("script_location", "backend/alembic")
+            _backend_dir = Path(__file__).resolve().parent.parent
+            cfg = Config(str(_backend_dir / "alembic.ini"))
+            cfg.set_main_option("script_location", str(_backend_dir / "alembic"))
 
             # 1. Upgrade to 0004
             command.upgrade(cfg, "0004_add_lease_fencing_and_candidate_rank_constraint")
