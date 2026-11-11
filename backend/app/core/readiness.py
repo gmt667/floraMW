@@ -122,6 +122,7 @@ SCHEMA_COLUMN_SPEC: Dict[str, Dict[str, Set[str]]] = {
             "client_request_id",
             "status",
             "lease_version",
+            "lease_assigned_at",
             "image_sha256",
             "image_format",
             "image_size_bytes",

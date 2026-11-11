@@ -67,6 +67,13 @@ class IdentificationRequest(Base):
         index=True,
         doc="Monotonically increasing fencing token incremented on each reservation or reclamation.",
     )
+    lease_assigned_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+        doc="Timestamp when the active worker lease was assigned, reclaimed, or retried.",
+    )
     image_sha256 = Column(
         String(64),
         nullable=False,
@@ -155,6 +162,11 @@ class IdentificationRequest(Base):
         cascade="all, delete-orphan",
         order_by="IdentificationCandidate.rank",
     )
+
+    def __init__(self, **kwargs):
+        if "created_at" in kwargs and "lease_assigned_at" not in kwargs:
+            kwargs["lease_assigned_at"] = kwargs["created_at"]
+        super().__init__(**kwargs)
 
 
 class IdentificationCandidate(Base):

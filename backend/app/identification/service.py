@@ -549,10 +549,10 @@ async def run_identification(
 
         # Handle active or expired processing reservation
         if existing.status == "processing":
-            created_at = existing.created_at
-            if created_at is not None and created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=timezone.utc)
-            elapsed = (now - created_at).total_seconds() if created_at else lease_seconds + 1
+            lease_assigned_at = getattr(existing, "lease_assigned_at", None) or existing.created_at
+            if lease_assigned_at is not None and lease_assigned_at.tzinfo is None:
+                lease_assigned_at = lease_assigned_at.replace(tzinfo=timezone.utc)
+            elapsed = (now - lease_assigned_at).total_seconds() if lease_assigned_at else lease_seconds + 1
             if elapsed < lease_seconds:
                 # Active processing by another worker: fail-closed, retryable
                 logger.info(
@@ -590,7 +590,7 @@ async def run_identification(
                     )
                     .values(
                         lease_version=next_version,
-                        created_at=now,
+                        lease_assigned_at=now,
                         provider_id=provider.provider_id,
                     )
                 )
@@ -635,9 +635,9 @@ async def run_identification(
                 )
                 .values(
                     lease_version=next_version,
+                    lease_assigned_at=now,
                     status="processing",
                     outcome="processing",
-                    created_at=now,
                     error_code=None,
                     error_message=None,
                     completed_at=None,
@@ -676,6 +676,8 @@ async def run_identification(
             status="processing",
             outcome="processing",
             lease_version=1,
+            lease_assigned_at=now,
+            created_at=now,
             image_sha256=image_sha256,
             image_format=image_payload.format,
             image_size_bytes=image_payload.size_bytes,
@@ -684,7 +686,6 @@ async def run_identification(
             provider_id=provider.provider_id,
             model_id=None,
             model_version=None,
-            created_at=now,
         )
         db.add(new_reservation)
         try:
