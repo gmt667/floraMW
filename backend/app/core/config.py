@@ -51,6 +51,17 @@ class Settings(BaseSettings):
     PLANTNET_LANGUAGE: str = "en"
     PLANTNET_MAX_RESULTS: int = 10
 
+    # Internal Botanical Identification Model Configuration (ML Team)
+    # Mode can be 'mock' (test/dev simulation), 'artifact' (local model file),
+    # 'service' (hosted inference microservice), or 'disabled'.
+    INTERNAL_MODEL_MODE: str = "mock"
+    INTERNAL_MODEL_ID: str = "floramw-internal-v1"
+    INTERNAL_MODEL_VERSION: str = "0.1.0"
+    INTERNAL_MODEL_ARTIFACT_PATH: str = ""
+    INTERNAL_MODEL_SERVICE_URL: str = ""
+    INTERNAL_MODEL_TIMEOUT_SECONDS: float = 5.0
+    INTERNAL_MODEL_LABELS_PATH: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

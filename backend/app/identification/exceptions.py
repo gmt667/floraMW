@@ -157,3 +157,43 @@ class MockProviderForbiddenError(ProviderError):
 
     retryable: bool = False
     http_status: int = 503
+
+
+class ConfigurationError(IdentificationError):
+    """Raised when a provider is misconfigured.
+
+    Non-retryable. HTTP 503 Service Unavailable (configuration error).
+    """
+
+    retryable: bool = False
+    http_status: int = 503
+
+
+class ProviderNetworkError(ProviderError):
+    """Raised when a network-level error prevents reaching the provider.
+
+    Retryable. HTTP 503 Service Unavailable.
+    """
+
+    retryable: bool = True
+    http_status: int = 503
+
+
+class IdempotencyConflictError(IdentificationError):
+    """Raised when a client_request_id was used with a different image payload.
+
+    Non-retryable. HTTP 409 Conflict.
+    """
+
+    retryable: bool = False
+    http_status: int = 409
+
+
+class RequestStillProcessingError(IdentificationError):
+    """Raised when a duplicate request is received while still processing.
+
+    Retryable. HTTP 202 Accepted.
+    """
+
+    retryable: bool = True
+    http_status: int = 202

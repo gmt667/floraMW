@@ -56,6 +56,10 @@ REQUIRED_TABLES: Set[str] = {
     "plant_sources",
     "plant_distributions",
     "users",
+    "identification_requests",
+    "identification_candidates",
+    "model_versions",
+    "dataset_versions",
 }
 
 # Critical columns required for ORM compatibility, and forbidden obsolete columns
@@ -111,6 +115,55 @@ SCHEMA_COLUMN_SPEC: Dict[str, Dict[str, Set[str]]] = {
             "native_status",
         },
         "forbidden": {"status"},
+    },
+    "identification_requests": {
+        "required": {
+            "id",
+            "client_request_id",
+            "status",
+            "image_sha256",
+            "image_format",
+            "image_size_bytes",
+            "provider_id",
+            "outcome",
+            "created_at",
+        },
+        "forbidden": set(),
+    },
+    "identification_candidates": {
+        "required": {
+            "id",
+            "request_id",
+            "rank",
+            "scientific_name",
+            "confidence",
+            "created_at",
+        },
+        "forbidden": set(),
+    },
+    "model_versions": {
+        "required": {
+            "id",
+            "model_id",
+            "version_tag",
+            "provider_type",
+            "is_active",
+            "created_at",
+        },
+        "forbidden": set(),
+    },
+    "dataset_versions": {
+        "required": {
+            "id",
+            "dataset_id",
+            "version_tag",
+            "species_count",
+            "image_count",
+            "validation_status",
+            "is_active",
+            "created_at",
+        },
+        "forbidden": set(),
     },
 }
 

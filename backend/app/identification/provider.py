@@ -200,6 +200,10 @@ def get_identification_provider() -> IdentificationProvider:
         from app.identification.plantnet_provider import PlantNetProvider
 
         return PlantNetProvider()
+    elif provider_name in ("internal", "floramw-internal"):
+        from app.identification.internal_provider import InternalModelProvider
+
+        return InternalModelProvider()
     elif provider_name in ("disabled", "none", ""):
         raise ProviderUnavailableError(
             "Botanical plant identification is currently disabled in configuration."
