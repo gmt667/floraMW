@@ -1,10 +1,18 @@
 """Pytest fixtures for FloraMW Backend Test Suite.
 
-Provides isolated in-memory SQLite database sessions pre-seeded with
-official Malawi botanical and district catalogs, along with an async HTTPX test client.
+Provides isolated SQLite database sessions pre-seeded with official Malawi
+botanical and district catalogs, along with an async HTTPX test client.
+
+Architecture Note — File-based SQLite in tempdir:
+  A tempfile-backed SQLite database is used rather than pure in-memory
+  so that multiple connections (FastAPI client dependency overrides and test
+  assertion sessions) see the exact same persisted rows across concurrent or
+  sequential transactions, without connection isolation discrepancies.
 """
 
+import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -16,7 +24,6 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.pool import StaticPool
 
 # Ensure backend directory is in python path
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -26,25 +33,41 @@ if str(BACKEND_DIR) not in sys.path:
 from app.core.database import Base, get_db
 from app.core.readiness import get_expected_migration_head
 from app.core.seed import seed_all
-from app.main import app
+from app.main import app as _app
 
-# Shared in-memory SQLite engine with StaticPool for async test isolation
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# Ensure all ORM models are registered with Base.metadata before create_all runs.
+from app.models import (  # noqa: F401
+    District,
+    IdentificationRequest,
+    IdentificationCandidate,
+    ModelVersion,
+    DatasetVersion,
+    Plant,
+    PlantSection,
+    PlantSource,
+    PlantDistribution,
+    User,
+)
+
+# Re-expose FastAPI app
+app = _app
+
+TEMP_DB_PATH = Path(tempfile.gettempdir()) / f"floramw_test_{os.getpid()}.db"
+TEST_DATABASE_URL = f"sqlite+aiosqlite:///{TEMP_DB_PATH.as_posix()}"
 
 test_engine = create_async_engine(
     TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
 )
 
 
 @event.listens_for(test_engine.sync_engine, "connect")
 def set_test_sqlite_pragma(dbapi_connection, connection_record):
-    """Enforce foreign keys on the test SQLite connection."""
-    if test_engine.dialect.name == "sqlite":
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+    """Enforce foreign keys and WAL mode on the test SQLite connection."""
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.close()
 
 
 TestingSessionLocal = async_sessionmaker(
@@ -53,6 +76,11 @@ TestingSessionLocal = async_sessionmaker(
     expire_on_commit=False,
     autoflush=False,
 )
+
+
+# ---------------------------------------------------------------------------
+# Session-scoped fixtures
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -80,6 +108,17 @@ async def setup_test_db():
         await conn.run_sync(Base.metadata.drop_all)
     await test_engine.dispose()
 
+    if TEMP_DB_PATH.exists():
+        try:
+            TEMP_DB_PATH.unlink()
+        except OSError:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Per-test fixtures
+# ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
@@ -103,4 +142,3 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
         yield ac
 
     app.dependency_overrides.clear()
-

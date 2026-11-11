@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_BYTES: int = 10 * 1024 * 1024  # 10 MB
     MAX_IMAGE_DIMENSION_PX: int = 4096  # Maximum width or height in pixels
 
+    # Processing lease timeout for idempotency reservation recovery (seconds)
+    IDENTIFICATION_PROCESSING_LEASE_SECONDS: int = 60
+
     # Identification confidence thresholds (0.0–1.0)
     # Provider confidence scores are not independently calibrated accuracy values.
     CONFIDENCE_THRESHOLD_HIGH: float = 0.70

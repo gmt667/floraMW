@@ -26,6 +26,7 @@ import httpx
 from app.core.config import settings
 from app.identification.exceptions import (
     ConfigurationError,
+    MockProviderForbiddenError,
     ProviderNetworkError,
     ProviderResponseError,
     ProviderTimeoutError,
@@ -100,6 +101,13 @@ class InternalModelProvider(IdentificationProvider):
             raise ProviderUnavailableError(
                 "Internal botanical model is currently disabled in configuration."
             )
+
+        if self.mode == "mock":
+            if settings.ENVIRONMENT == "production" or not settings.ALLOW_MOCK_PROVIDER:
+                raise MockProviderForbiddenError(
+                    "The internal mock model provider is forbidden in production or when ALLOW_MOCK_PROVIDER is False. "
+                    "Configure a verified model inference service or production provider."
+                )
 
         if self.mode not in ("mock", "service", "artifact"):
             raise ConfigurationError(

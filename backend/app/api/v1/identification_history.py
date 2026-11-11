@@ -1,24 +1,18 @@
-"""Identification history endpoints.
+"""Identification history endpoints and query service.
 
 GET /api/v1/identifications        — paginated identification history
 GET /api/v1/identifications/{id}   — full identification detail
 
-Authentication note:
-  User authentication endpoints are not yet implemented (Phase 4).
-  History records are therefore publicly readable by ID.
-  The user_id association column is fully present in the schema so that
-  per-user filtering can be activated in Phase 4 by adding a Depends(get_current_user)
-  dependency without any database migration.
+Security Notice (Phase 3.1 Hardening):
+  Public access to both history endpoints is temporarily disabled (HTTP 503)
+  pending the introduction of authenticated ownership filtering in Phase 4.
+  All records and candidates remain securely persisted in the database.
+  No identification records, candidate details, or user identifiers are disclosed
+  to unauthenticated callers.
 
-  When authentication is added:
-  - Authenticated users will see only their own records.
-  - Anonymous identifications (user_id IS NULL) are accessible only by id.
-  - Admin role will be granted read access to all records.
-
-Security:
-  - No image bytes are stored or returned; only metadata and candidates.
-  - Identification IDs are UUIDs; they are not guessable in sequence.
-  - Internal paths, stack traces, and credentials are never included in responses.
+  The underlying query and pagination logic has been optimized to eliminate N+1
+  queries via correlated subqueries, ready for immediate re-activation once
+  Phase 4 authentication dependencies are attached.
 """
 
 from __future__ import annotations
@@ -27,6 +21,7 @@ import json
 import logging
 import math
 from typing import Optional
+import uuid as _uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -52,34 +47,49 @@ logger = logging.getLogger("floramw.api.identification_history")
 
 router = APIRouter(prefix="/identifications", tags=["Identification History"])
 
-
-# ---------------------------------------------------------------------------
-# GET /api/v1/identifications
-# ---------------------------------------------------------------------------
-
-
-@router.get(
-    "",
-    response_model=IdentificationHistoryListResponse,
-    summary="List identification history",
-    description=(
-        "Retrieve a paginated list of past plant identification requests. "
-        "Supports filtering by outcome, provider, model version, and date range. "
-        "Note: Per-user filtering will be activated in Phase 4 when authentication is implemented."
-    ),
+_AUTH_PENDING_MESSAGE = (
+    "Identification history is temporarily unavailable pending "
+    "user authentication integration in Phase 4. "
+    "Records are securely preserved and cannot be accessed anonymously."
 )
-async def list_identifications(
-    outcome: Optional[str] = Query(None, description="Filter by outcome: 'candidates', 'no_match', or 'demo_mode'."),
-    provider_id: Optional[str] = Query(None, description="Filter by provider identifier."),
-    model_version: Optional[str] = Query(None, description="Filter by model version string."),
-    created_after: Optional[str] = Query(None, description="ISO 8601 datetime lower bound (inclusive)."),
-    created_before: Optional[str] = Query(None, description="ISO 8601 datetime upper bound (inclusive)."),
-    page: int = Query(1, ge=1, description="Page number (1-based)."),
-    limit: int = Query(20, ge=1, le=100, description="Records per page."),
-    db: AsyncSession = Depends(get_db),
+
+
+# ---------------------------------------------------------------------------
+# Internal Query Service Functions (Optimized with single query, no N+1)
+# ---------------------------------------------------------------------------
+
+
+async def fetch_identification_history_list(
+    db: AsyncSession,
+    *,
+    outcome: Optional[str] = None,
+    provider_id: Optional[str] = None,
+    model_version: Optional[str] = None,
+    created_after: Optional[str] = None,
+    created_before: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    user_id: Optional[str] = None,
 ) -> IdentificationHistoryListResponse:
-    """Return a paginated, filtered list of identification history records."""
-    stmt = select(IdentificationRequest)
+    """Fetch paginated identification history using an optimized single query.
+
+    Uses a correlated scalar subquery to count candidates in the same query,
+    completely eliminating N+1 query overhead across both SQLite and PostgreSQL.
+    """
+    # Correlated scalar subquery for candidate counts (avoids N+1 query loop)
+    cand_count_subq = (
+        select(func.count(IdentificationCandidate.id))
+        .where(IdentificationCandidate.request_id == IdentificationRequest.id)
+        .correlate(IdentificationRequest)
+        .scalar_subquery()
+    )
+
+    stmt = select(IdentificationRequest, cand_count_subq.label("candidate_count")).where(
+        IdentificationRequest.status == "completed"
+    )
+
+    if user_id:
+        stmt = stmt.where(IdentificationRequest.user_id == user_id)
 
     if outcome:
         try:
@@ -98,7 +108,7 @@ async def list_identifications(
         stmt = stmt.where(IdentificationRequest.model_version == model_version)
 
     if created_after:
-        from datetime import datetime, timezone
+        from datetime import datetime
         try:
             dt = datetime.fromisoformat(created_after.replace("Z", "+00:00"))
             stmt = stmt.where(IdentificationRequest.created_at >= dt)
@@ -109,7 +119,7 @@ async def list_identifications(
             )
 
     if created_before:
-        from datetime import datetime, timezone
+        from datetime import datetime
         try:
             dt = datetime.fromisoformat(created_before.replace("Z", "+00:00"))
             stmt = stmt.where(IdentificationRequest.created_at <= dt)
@@ -119,8 +129,10 @@ async def list_identifications(
                 detail=f"Invalid created_before datetime format: '{created_before}'.",
             )
 
-    # Count total before pagination
-    count_stmt = select(func.count()).select_from(stmt.subquery())
+    # Count total requests before pagination
+    count_stmt = select(func.count()).select_from(
+        stmt.with_only_columns(IdentificationRequest.id).subquery()
+    )
     total = (await db.execute(count_stmt)).scalar_one()
 
     # Apply stable ordering and pagination
@@ -128,39 +140,30 @@ async def list_identifications(
     offset = (page - 1) * limit
     stmt = stmt.offset(offset).limit(limit)
 
-    rows = (await db.execute(stmt)).scalars().all()
+    rows = (await db.execute(stmt)).all()
 
-    # Get candidate counts in one query
     total_pages = math.ceil(total / limit) if total > 0 else 1
     has_more = (page * limit) < total
 
-    items = []
-    for req in rows:
-        # Count candidates for this request
-        cand_count_stmt = (
-            select(func.count())
-            .where(IdentificationCandidate.request_id == req.id)
+    items = [
+        IdentificationHistoryItemOut(
+            id=str(req.id),
+            client_request_id=req.client_request_id,
+            outcome=IdentificationOutcome(req.outcome),
+            top_confidence_level=(
+                ConfidenceLevel(req.top_confidence_level)
+                if req.top_confidence_level
+                else None
+            ),
+            provider_id=req.provider_id,
+            model_version=req.model_version,
+            image_format=req.image_format,
+            image_size_bytes=req.image_size_bytes,
+            candidate_count=cand_count or 0,
+            created_at=req.created_at,
         )
-        cand_count = (await db.execute(cand_count_stmt)).scalar_one()
-
-        items.append(
-            IdentificationHistoryItemOut(
-                id=str(req.id),
-                client_request_id=req.client_request_id,
-                outcome=IdentificationOutcome(req.outcome),
-                top_confidence_level=(
-                    ConfidenceLevel(req.top_confidence_level)
-                    if req.top_confidence_level
-                    else None
-                ),
-                provider_id=req.provider_id,
-                model_version=req.model_version,
-                image_format=req.image_format,
-                image_size_bytes=req.image_size_bytes,
-                candidate_count=cand_count,
-                created_at=req.created_at,
-            )
-        )
+        for req, cand_count in rows
+    ]
 
     return IdentificationHistoryListResponse(
         total=total,
@@ -172,30 +175,13 @@ async def list_identifications(
     )
 
 
-# ---------------------------------------------------------------------------
-# GET /api/v1/identifications/{identification_id}
-# ---------------------------------------------------------------------------
-
-
-@router.get(
-    "/{identification_id}",
-    response_model=IdentificationHistoryDetailOut,
-    summary="Get identification detail",
-    description=(
-        "Retrieve the complete persisted record for a single identification request, "
-        "including all candidates and provider metadata."
-    ),
-    responses={
-        status.HTTP_404_NOT_FOUND: {"description": "Identification record not found."},
-    },
-)
-async def get_identification(
+async def fetch_identification_detail(
     identification_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession,
+    *,
+    user_id: Optional[str] = None,
 ) -> IdentificationHistoryDetailOut:
-    """Return the full detail of a persisted identification request."""
-    # Parse UUID safely
-    import uuid as _uuid
+    """Fetch complete detail of an identification request with candidates."""
     try:
         req_uuid = _uuid.UUID(identification_id)
     except ValueError:
@@ -207,8 +193,14 @@ async def get_identification(
     stmt = (
         select(IdentificationRequest)
         .options(selectinload(IdentificationRequest.candidates))
-        .where(IdentificationRequest.id == req_uuid)
+        .where(
+            IdentificationRequest.id == req_uuid,
+            IdentificationRequest.status == "completed",
+        )
     )
+    if user_id:
+        stmt = stmt.where(IdentificationRequest.user_id == user_id)
+
     result = await db.execute(stmt)
     req = result.scalar_one_or_none()
 
@@ -218,7 +210,6 @@ async def get_identification(
             detail="Identification record not found.",
         )
 
-    # Build candidate list
     candidates_out: list[IdentificationCandidateHistoryOut] = []
     for cand in sorted(req.candidates, key=lambda c: c.rank):
         try:
@@ -267,4 +258,65 @@ async def get_identification(
         candidates=candidates_out,
         created_at=req.created_at,
         completed_at=req.completed_at,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Public HTTP Endpoints (Fail-Closed pending Phase 4 authentication)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "",
+    summary="List identification history (Temporarily Disabled)",
+    description=(
+        "Identification history listing is temporarily disabled pending user "
+        "authentication integration in Phase 4. Returns HTTP 503. "
+        "No historical identification records are exposed to unauthenticated callers."
+    ),
+    responses={
+        status.HTTP_503_SERVICE_UNAVAILABLE: {
+            "description": "Identification history is temporarily unavailable pending authentication."
+        }
+    },
+)
+async def list_identifications(
+    outcome: Optional[str] = Query(None),
+    provider_id: Optional[str] = Query(None),
+    model_version: Optional[str] = Query(None),
+    created_after: Optional[str] = Query(None),
+    created_before: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Fail-closed: block unauthenticated access to history listing."""
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=_AUTH_PENDING_MESSAGE,
+    )
+
+
+@router.get(
+    "/{identification_id}",
+    summary="Get identification detail (Temporarily Disabled)",
+    description=(
+        "Identification detail retrieval is temporarily disabled pending user "
+        "authentication integration in Phase 4. Returns HTTP 503. "
+        "No historical identification records are exposed to unauthenticated callers."
+    ),
+    responses={
+        status.HTTP_503_SERVICE_UNAVAILABLE: {
+            "description": "Identification detail is temporarily unavailable pending authentication."
+        }
+    },
+)
+async def get_identification(
+    identification_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Fail-closed: block unauthenticated access to record detail."""
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=_AUTH_PENDING_MESSAGE,
     )

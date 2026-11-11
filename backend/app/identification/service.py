@@ -2,40 +2,33 @@
 
 Coordinates the full identification workflow:
 1. Image validation and preparation (image_validation layer)
-2. SHA-256 fingerprint calculation for idempotency and provenance
-3. Idempotency check: return cached result for duplicate client_request_id
-4. Provider invocation (IdentificationProvider)
-5. Candidate confidence interpretation and finite-value validation
-6. Catalogue matching (catalogue_matching layer)
-7. Persistence of the request and all candidates in a single transaction
-8. Structured response construction
+2. SHA-256 fingerprint calculation for idempotency and payload verification
+3. Database reservation committed BEFORE provider invocation (two-phase lifecycle)
+4. Idempotency enforcement:
+   - Identical image + completed request → returns cached result (no re-inference)
+   - Identical image + active processing → returns retryable HTTP 503 (no duplicate inference)
+   - Identical image + expired processing → safely recovers and retries inference
+   - Different image + same client_request_id → returns HTTP 409 Conflict
+   - Concurrent race → resolved atomically via DB unique constraint + rollback
+5. Provider invocation (IdentificationProvider)
+6. Failure persistence: expected provider errors are persisted as status='failed' before raising
+7. Candidate confidence validation and finite-value enforcement
+8. Catalogue cross-referencing
+9. Transactional completion: status='completed', candidates persisted, committed atomically
+10. Structured response construction
 
-Idempotency policy:
-  - client_request_id is a stable key enforced by UNIQUE constraint in the DB.
-  - If a completed request with the same client_request_id exists AND the
-    image SHA-256 matches, the persisted result is returned directly.
-  - If the SHA-256 differs, IdempotencyConflictError (HTTP 409) is raised.
-  - If a request is still 'processing' (interrupted), HTTP 503 is returned.
-  - Concurrent identical submissions are safely serialised by the DB constraint.
-
-Error handling policy (raises HTTPException with appropriate status):
+Error handling policy:
   EmptyUploadError         → HTTP 400
   ImageDecodingError       → HTTP 400
   FileTooLargeError        → HTTP 413
   UnsupportedFormatError   → HTTP 415
   ImageDimensionError      → HTTP 422
   IdempotencyConflictError → HTTP 409
-  MockProviderForbiddenError → HTTP 503 (identification disabled in env)
+  MockProviderForbiddenError → HTTP 503 (mock forbidden in environment)
   ProviderUnavailableError → HTTP 503 (temporary; retryable)
   ProviderTimeoutError     → HTTP 504 (temporary; retryable)
   ProviderResponseError    → HTTP 502
   Unexpected Exception     → HTTP 502
-
-HTTP 200 is returned only when the image is valid and the provider completes
-(even if it finds no candidates — that is a legitimate result, not an error).
-
-No internal state, secrets, or stack traces are included in returned schemas
-or exception details.
 """
 
 from __future__ import annotations
@@ -44,15 +37,17 @@ import hashlib
 import json
 import logging
 import math
+import re
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import HTTPException
+from fastapi import HTTPException, status as http_status_codes
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.identification.catalogue_matching import match_scientific_name
@@ -65,6 +60,7 @@ from app.identification.exceptions import (
     ImageValidationError,
     MockProviderForbiddenError,
     ProviderError,
+    ProviderNetworkError,
     ProviderResponseError,
     ProviderTimeoutError,
     ProviderUnavailableError,
@@ -109,14 +105,7 @@ _NO_MATCH_GUIDANCE_ACTIONS = [
 
 
 def _confidence_level(score: float) -> ConfidenceLevel:
-    """Map a numeric confidence score to a labelled band.
-
-    Thresholds are configuration-driven. Labels must never be presented
-    as independently validated accuracy measurements.
-
-    Precondition: score is a finite float in [0.0, 1.0]; enforced by
-    _validate_candidate before this is called.
-    """
+    """Map a numeric confidence score to a labelled band."""
     if score >= settings.CONFIDENCE_THRESHOLD_HIGH:
         return ConfidenceLevel.HIGH
     if score >= settings.CONFIDENCE_THRESHOLD_MODERATE:
@@ -149,15 +138,7 @@ def _no_match_guidance() -> PhotoGuidance:
 
 
 def _validate_candidate(candidate: ProviderCandidate) -> ProviderCandidate | None:
-    """Return the candidate if it is structurally valid, else None.
-
-    Invalid candidates (missing name, non-finite or out-of-range confidence)
-    are discarded rather than raising — a partial result is preferable to a
-    complete failure caused by one malformed candidate.
-
-    Explicitly checks math.isfinite to reject NaN and ±Infinity, which would
-    otherwise satisfy the 0.0 <= x <= 1.0 range check ambiguously.
-    """
+    """Return the candidate if it is structurally valid, else None."""
     if not candidate.scientific_name or not candidate.scientific_name.strip():
         logger.warning("Provider returned candidate with empty scientific name; discarding.")
         return None
@@ -182,8 +163,20 @@ def _validate_candidate(candidate: ProviderCandidate) -> ProviderCandidate | Non
 
 
 # ---------------------------------------------------------------------------
-# HTTPException factory helpers
+# HTTPException and error sanitization helpers
 # ---------------------------------------------------------------------------
+
+
+def _sanitize_error_message(msg: str) -> str:
+    """Sanitize error message to ensure no credentials or secrets are leaked."""
+    if not msg:
+        return "Internal identification error."
+    # Mask api-key query parameters or key strings
+    sanitized = re.sub(r"(?i)(api[_-]?key|key|token|password)=([^&\s]+)", r"\1=[REDACTED]", msg)
+    # Mask bearer tokens
+    sanitized = re.sub(r"(?i)bearer\s+[a-zA-Z0-9_\-\.]+", "Bearer [REDACTED]", sanitized)
+    # Truncate to safe length
+    return sanitized[:500]
 
 
 def _image_error(
@@ -220,18 +213,13 @@ def _provider_error(
     )
 
 
-# ---------------------------------------------------------------------------
-# SHA-256 image fingerprint
-# ---------------------------------------------------------------------------
-
-
 def _sha256_hex(data: bytes) -> str:
     """Return lowercase hex SHA-256 digest of the given bytes."""
     return hashlib.sha256(data).hexdigest()
 
 
 # ---------------------------------------------------------------------------
-# Idempotency: load persisted response from an existing request record
+# Idempotency response reconstruction from database record
 # ---------------------------------------------------------------------------
 
 
@@ -264,7 +252,6 @@ def _reconstruct_response_from_record(
             )
         )
 
-    # Determine guidance
     outcome = IdentificationOutcome(request.outcome)
     photo_guidance = None
     if outcome == IdentificationOutcome.NO_MATCH:
@@ -302,66 +289,73 @@ def _reconstruct_response_from_record(
 
 
 # ---------------------------------------------------------------------------
-# Persistence helpers
+# Two-Phase Persistence Helpers: Reservation, Failure, and Completion
 # ---------------------------------------------------------------------------
 
 
-async def _persist_identification(
+async def _record_failure(
     db: AsyncSession,
+    request_id: uuid.UUID,
     *,
-    client_request_id: str,
-    image_sha256: str,
-    image_format: str,
-    image_size_bytes: int,
-    image_width_px: int,
-    image_height_px: int,
+    error_code: str,
+    error_message: str,
+    execution_duration_ms: int,
+) -> None:
+    """Persist a failed identification attempt in the database."""
+    try:
+        stmt = select(IdentificationRequest).where(IdentificationRequest.id == request_id)
+        result = await db.execute(stmt)
+        req = result.scalar_one_or_none()
+        if req is not None:
+            req.status = "failed"
+            req.outcome = "failed"
+            req.error_code = error_code
+            req.error_message = _sanitize_error_message(error_message)
+            req.execution_duration_ms = execution_duration_ms
+            req.completed_at = datetime.now(timezone.utc)
+            await db.commit()
+    except Exception as exc:
+        logger.error("Failed to persist identification failure status: %s", exc)
+        await db.rollback()
+
+
+async def _record_success(
+    db: AsyncSession,
+    request_id: uuid.UUID,
+    *,
     provider_id: str,
     model_version: Optional[str],
     outcome: IdentificationOutcome,
     top_confidence_level: Optional[ConfidenceLevel],
     execution_duration_ms: int,
     enriched_candidates: list[IdentificationCandidateOut],
-    user_id: Optional[str] = None,
-    now: Optional[datetime] = None,
-) -> IdentificationRequest:
-    """Persist the identification request and all candidate records in one transaction."""
-    if now is None:
-        now = datetime.now(timezone.utc)
+    now: datetime,
+) -> None:
+    """Transition a reserved request to completed and persist its candidates."""
+    stmt = select(IdentificationRequest).where(IdentificationRequest.id == request_id)
+    result = await db.execute(stmt)
+    req = result.scalar_one()
 
-    # Extract model_id from provider metadata if available
-    model_id: Optional[str] = None
+    model_id = None
     if provider_id == "internal":
         model_id = settings.INTERNAL_MODEL_ID
 
-    request = IdentificationRequest(
-        id=uuid.uuid4(),
-        client_request_id=client_request_id,
-        user_id=user_id,
-        status="completed",
-        image_sha256=image_sha256,
-        image_format=image_format,
-        image_size_bytes=image_size_bytes,
-        image_width_px=image_width_px,
-        image_height_px=image_height_px,
-        provider_id=provider_id,
-        model_id=model_id,
-        model_version=model_version,
-        outcome=outcome.value,
-        top_confidence_level=(
-            top_confidence_level.value if top_confidence_level else None
-        ),
-        execution_duration_ms=execution_duration_ms,
-        created_at=now,
-        completed_at=now,
+    req.status = "completed"
+    req.outcome = outcome.value
+    req.provider_id = provider_id
+    req.model_id = model_id
+    req.model_version = model_version
+    req.top_confidence_level = (
+        top_confidence_level.value if top_confidence_level else None
     )
-    db.add(request)
-    await db.flush()  # Assign PK before inserting candidates
+    req.execution_duration_ms = execution_duration_ms
+    req.completed_at = now
 
     for rank, cand in enumerate(enriched_candidates, start=1):
         common_names_json = json.dumps(cand.common_names or [])
         candidate = IdentificationCandidate(
             id=uuid.uuid4(),
-            request_id=request.id,
+            request_id=req.id,
             rank=rank,
             scientific_name=cand.scientific_name,
             common_names=common_names_json,
@@ -375,12 +369,10 @@ async def _persist_identification(
         db.add(candidate)
 
     await db.commit()
-    await db.refresh(request)
-    return request
 
 
 # ---------------------------------------------------------------------------
-# Main service function
+# Main Identification Workflow with Two-Phase Reservation
 # ---------------------------------------------------------------------------
 
 
@@ -392,27 +384,21 @@ async def run_identification(
     client_request_id: str | None = None,
     user_id: Optional[str] = None,
 ) -> IdentificationResponse:
-    """Execute the full identification workflow with persistence and idempotency.
+    """Execute identification with genuine two-phase database reservation.
 
-    Returns:
-        IdentificationResponse (HTTP 200) when the image is valid and the
-        provider has processed the request, regardless of whether candidates
-        were found.
-
-    Raises:
-        HTTPException (400): Empty or corrupted image.
-        HTTPException (409): Idempotency conflict (same ID, different image).
-        HTTPException (413): Image exceeds size limit.
-        HTTPException (415): Unsupported image format.
-        HTTPException (422): Image dimensions exceed limit.
-        HTTPException (502): Provider returned an invalid response.
-        HTTPException (503): Provider unavailable or identification disabled.
-        HTTPException (504): Provider timed out.
+    Workflow:
+    1. Image validation and normalization.
+    2. SHA-256 fingerprint computation.
+    3. Idempotency verification and processing reservation committed BEFORE provider invocation.
+    4. Provider inference execution.
+    5. Failure persistence on provider errors.
+    6. Candidate enrichment and catalogue cross-referencing.
+    7. Atomic database completion commit.
     """
     start_time = time.perf_counter()
 
     # ------------------------------------------------------------------
-    # Step 1: Image validation — raises HTTPException on failure
+    # Step 1: Image validation
     # ------------------------------------------------------------------
     try:
         image_payload = validate_and_prepare(raw_bytes, declared_content_type)
@@ -465,17 +451,15 @@ async def run_identification(
         ) from exc
 
     # ------------------------------------------------------------------
-    # Step 2: Compute SHA-256 fingerprint for idempotency and provenance
+    # Step 2: Compute SHA-256 fingerprint and resolve client_request_id
     # ------------------------------------------------------------------
     image_sha256 = _sha256_hex(image_payload.content)
-
-    # ------------------------------------------------------------------
-    # Step 3: Resolve or generate stable client_request_id
-    # ------------------------------------------------------------------
     effective_request_id = (client_request_id or "").strip() or str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    lease_seconds = getattr(settings, "IDENTIFICATION_PROCESSING_LEASE_SECONDS", 60)
 
     # ------------------------------------------------------------------
-    # Step 4: Idempotency check — look up existing request by client ID
+    # Step 3: Database Reservation BEFORE Provider Invocation
     # ------------------------------------------------------------------
     stmt = (
         select(IdentificationRequest)
@@ -484,23 +468,13 @@ async def run_identification(
     result = await db.execute(stmt)
     existing = result.scalar_one_or_none()
 
+    active_request_id: uuid.UUID
+
     if existing is not None:
-        if existing.status == "processing":
-            raise HTTPException(
-                status_code=503,
-                detail=IdentificationErrorResponse(
-                    error_code=IdentificationErrorCode.PROVIDER_UNAVAILABLE,
-                    message=(
-                        "This request is still being processed. "
-                        "Please retry after a brief delay."
-                    ),
-                    retryable=True,
-                ).model_dump(mode="json"),
-            )
-        # Completed or failed: check SHA-256 matches
+        # Check payload fingerprint match
         if existing.image_sha256 != image_sha256:
             raise HTTPException(
-                status_code=409,
+                status_code=http_status_codes.HTTP_409_CONFLICT,
                 detail=IdentificationErrorResponse(
                     error_code=IdentificationErrorCode.PROVIDER_ERROR,
                     message=(
@@ -510,31 +484,152 @@ async def run_identification(
                     retryable=False,
                 ).model_dump(mode="json"),
             )
-        # Safe duplicate: return persisted result
-        logger.info(
-            "Returning cached identification result for client_request_id=%s",
-            effective_request_id,
+
+        # Handle completed request -> return cached response immediately
+        if existing.status == "completed":
+            logger.info(
+                "Returning cached identification result for client_request_id=%s",
+                effective_request_id,
+            )
+            stmt2 = (
+                select(IdentificationRequest)
+                .options(selectinload(IdentificationRequest.candidates))
+                .where(IdentificationRequest.id == existing.id)
+            )
+            result2 = await db.execute(stmt2)
+            existing_with_candidates = result2.scalar_one()
+            return _reconstruct_response_from_record(existing_with_candidates, client_request_id)
+
+        # Handle active or expired processing reservation
+        if existing.status == "processing":
+            created_at = existing.created_at
+            if created_at is not None and created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            elapsed = (now - created_at).total_seconds() if created_at else lease_seconds + 1
+            if elapsed < lease_seconds:
+                # Active processing by another worker: fail-closed, retryable
+                logger.info(
+                    "Duplicate request encountered active processing lease (elapsed: %.1fs): %s",
+                    elapsed,
+                    effective_request_id,
+                )
+                raise HTTPException(
+                    status_code=http_status_codes.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=IdentificationErrorResponse(
+                        error_code=IdentificationErrorCode.PROVIDER_UNAVAILABLE,
+                        message=(
+                            "This identification request is currently being processed. "
+                            "Please retry in a few seconds."
+                        ),
+                        retryable=True,
+                    ).model_dump(mode="json"),
+                )
+            else:
+                # Lease expired / abandoned processing: recover reservation
+                logger.warning(
+                    "Recovering abandoned identification lease (elapsed: %.1fs): %s",
+                    elapsed,
+                    effective_request_id,
+                )
+                existing.created_at = now
+                existing.provider_id = provider.provider_id
+                await db.commit()
+                active_request_id = existing.id
+        else:
+            # Previous attempt had failed: allow recovery/retry
+            logger.info(
+                "Retrying previously failed identification request: %s",
+                effective_request_id,
+            )
+            existing.status = "processing"
+            existing.outcome = "processing"
+            existing.created_at = now
+            existing.error_code = None
+            existing.error_message = None
+            existing.completed_at = None
+            await db.commit()
+            active_request_id = existing.id
+
+    else:
+        # Create new processing reservation and commit BEFORE calling provider
+        new_reservation = IdentificationRequest(
+            id=uuid.uuid4(),
+            client_request_id=effective_request_id,
+            user_id=user_id,
+            status="processing",
+            outcome="processing",
+            image_sha256=image_sha256,
+            image_format=image_payload.format,
+            image_size_bytes=image_payload.size_bytes,
+            image_width_px=image_payload.width_px,
+            image_height_px=image_payload.height_px,
+            provider_id=provider.provider_id,
+            model_id=None,
+            model_version=None,
+            created_at=now,
         )
-        # Eagerly load candidates by re-querying with joinedload
-        from sqlalchemy.orm import selectinload
-        stmt2 = (
-            select(IdentificationRequest)
-            .options(selectinload(IdentificationRequest.candidates))
-            .where(IdentificationRequest.id == existing.id)
-        )
-        result2 = await db.execute(stmt2)
-        existing_with_candidates = result2.scalar_one()
-        return _reconstruct_response_from_record(existing_with_candidates, client_request_id)
+        db.add(new_reservation)
+        try:
+            await db.commit()
+            active_request_id = new_reservation.id
+        except IntegrityError:
+            # Race condition: concurrent request inserted same client_request_id
+            await db.rollback()
+            stmt_race = select(IdentificationRequest).where(
+                IdentificationRequest.client_request_id == effective_request_id
+            )
+            result_race = await db.execute(stmt_race)
+            race_req = result_race.scalar_one()
+
+            if race_req.image_sha256 != image_sha256:
+                raise HTTPException(
+                    status_code=http_status_codes.HTTP_409_CONFLICT,
+                    detail=IdentificationErrorResponse(
+                        error_code=IdentificationErrorCode.PROVIDER_ERROR,
+                        message=(
+                            "The provided X-Client-Request-Id was previously used with "
+                            "a different image. Use a new unique identifier for each request."
+                        ),
+                        retryable=False,
+                    ).model_dump(mode="json"),
+                )
+
+            if race_req.status == "processing":
+                raise HTTPException(
+                    status_code=http_status_codes.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=IdentificationErrorResponse(
+                        error_code=IdentificationErrorCode.PROVIDER_UNAVAILABLE,
+                        message="This identification request is currently being processed. Please retry shortly.",
+                        retryable=True,
+                    ).model_dump(mode="json"),
+                )
+
+            # Concurrent request completed during race: return cached result
+            stmt_cached = (
+                select(IdentificationRequest)
+                .options(selectinload(IdentificationRequest.candidates))
+                .where(IdentificationRequest.id == race_req.id)
+            )
+            cached_res = await db.execute(stmt_cached)
+            return _reconstruct_response_from_record(cached_res.scalar_one(), client_request_id)
 
     # ------------------------------------------------------------------
-    # Step 5: Provider invocation — raises HTTPException on failure
+    # Step 4: Provider Invocation with Failure Persistence
     # ------------------------------------------------------------------
     is_demo = provider.provider_id.startswith("floramw-deterministic")
 
     try:
         provider_result = await provider.identify(image_payload)
     except MockProviderForbiddenError as exc:
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
         logger.error("Mock provider forbidden in this environment: %s", exc)
+        await _record_failure(
+            db,
+            active_request_id,
+            error_code=IdentificationErrorCode.IDENTIFICATION_DISABLED.value,
+            error_message=str(exc),
+            execution_duration_ms=duration_ms,
+        )
         raise _provider_error(
             IdentificationErrorCode.IDENTIFICATION_DISABLED,
             (
@@ -545,7 +640,15 @@ async def run_identification(
             retryable=False,
         ) from exc
     except ProviderUnavailableError as exc:
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
         logger.warning("Provider unavailable: %s", exc)
+        await _record_failure(
+            db,
+            active_request_id,
+            error_code=IdentificationErrorCode.PROVIDER_UNAVAILABLE.value,
+            error_message=str(exc),
+            execution_duration_ms=duration_ms,
+        )
         raise _provider_error(
             IdentificationErrorCode.PROVIDER_UNAVAILABLE,
             "The identification service is temporarily unavailable. Please try again shortly.",
@@ -553,15 +656,31 @@ async def run_identification(
             retryable=True,
         ) from exc
     except ProviderTimeoutError as exc:
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
         logger.warning("Provider timeout: %s", exc)
+        await _record_failure(
+            db,
+            active_request_id,
+            error_code=IdentificationErrorCode.PROVIDER_TIMEOUT.value,
+            error_message=str(exc),
+            execution_duration_ms=duration_ms,
+        )
         raise _provider_error(
             IdentificationErrorCode.PROVIDER_TIMEOUT,
             "The identification request timed out. Please retry with a stable connection.",
             http_status=504,
             retryable=True,
         ) from exc
-    except (ProviderResponseError, ProviderError) as exc:
+    except (ProviderResponseError, ProviderNetworkError, ProviderError) as exc:
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
         logger.error("Provider error: %s", exc)
+        await _record_failure(
+            db,
+            active_request_id,
+            error_code=IdentificationErrorCode.PROVIDER_ERROR.value,
+            error_message=str(exc),
+            execution_duration_ms=duration_ms,
+        )
         raise _provider_error(
             IdentificationErrorCode.PROVIDER_ERROR,
             "The identification service returned an unexpected response. This has been logged.",
@@ -569,7 +688,15 @@ async def run_identification(
             retryable=False,
         ) from exc
     except Exception as exc:
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
         logger.exception("Unexpected error from provider: %s", exc)
+        await _record_failure(
+            db,
+            active_request_id,
+            error_code=IdentificationErrorCode.PROVIDER_ERROR.value,
+            error_message=str(exc),
+            execution_duration_ms=duration_ms,
+        )
         raise _provider_error(
             IdentificationErrorCode.PROVIDER_ERROR,
             "An unexpected error occurred during identification. This has been logged.",
@@ -578,7 +705,7 @@ async def run_identification(
         ) from exc
 
     # ------------------------------------------------------------------
-    # Step 6: Validate and filter provider candidates
+    # Step 5: Candidate Validation
     # ------------------------------------------------------------------
     valid_candidates = [
         c for c in (
@@ -587,29 +714,23 @@ async def run_identification(
         if c is not None
     ]
 
-    now = datetime.now(timezone.utc)
+    completed_now = datetime.now(timezone.utc)
     execution_duration_ms = int((time.perf_counter() - start_time) * 1000)
 
     # ------------------------------------------------------------------
-    # Step 7: Handle no-match case — HTTP 200, outcome NO_MATCH
+    # Step 6: Handle NO_MATCH outcome
     # ------------------------------------------------------------------
     if not valid_candidates:
-        await _persist_identification(
+        await _record_success(
             db,
-            client_request_id=effective_request_id,
-            image_sha256=image_sha256,
-            image_format=image_payload.format,
-            image_size_bytes=image_payload.size_bytes,
-            image_width_px=image_payload.width_px,
-            image_height_px=image_payload.height_px,
+            active_request_id,
             provider_id=provider_result.provider_id,
             model_version=provider_result.model_version,
             outcome=IdentificationOutcome.NO_MATCH,
             top_confidence_level=None,
             execution_duration_ms=execution_duration_ms,
             enriched_candidates=[],
-            user_id=user_id,
-            now=now,
+            now=completed_now,
         )
         return IdentificationResponse(
             outcome=IdentificationOutcome.NO_MATCH,
@@ -626,7 +747,7 @@ async def run_identification(
         )
 
     # ------------------------------------------------------------------
-    # Step 8: Catalogue matching and candidate enrichment
+    # Step 7: Catalogue matching and candidate enrichment
     # ------------------------------------------------------------------
     enriched: list[IdentificationCandidateOut] = []
     for pc in valid_candidates:
@@ -658,11 +779,10 @@ async def run_identification(
             )
         )
 
-    # Sort by confidence descending
     enriched.sort(key=lambda c: c.confidence, reverse=True)
 
     # ------------------------------------------------------------------
-    # Step 9: Determine top-level outcome and guidance
+    # Step 8: Determine top-level outcome and photo guidance
     # ------------------------------------------------------------------
     top_candidate = enriched[0]
     top_level = top_candidate.confidence_level
@@ -680,47 +800,19 @@ async def run_identification(
         )
 
     # ------------------------------------------------------------------
-    # Step 10: Persist the request and candidates
+    # Step 9: Atomic Database Completion Commit
     # ------------------------------------------------------------------
-    try:
-        await _persist_identification(
-            db,
-            client_request_id=effective_request_id,
-            image_sha256=image_sha256,
-            image_format=image_payload.format,
-            image_size_bytes=image_payload.size_bytes,
-            image_width_px=image_payload.width_px,
-            image_height_px=image_payload.height_px,
-            provider_id=provider_result.provider_id,
-            model_version=provider_result.model_version,
-            outcome=outcome,
-            top_confidence_level=top_level,
-            execution_duration_ms=execution_duration_ms,
-            enriched_candidates=enriched,
-            user_id=user_id,
-            now=now,
-        )
-    except IntegrityError:
-        # Race condition: another concurrent request with the same ID just committed.
-        # Roll back and treat as a successful duplicate by looking up the existing record.
-        await db.rollback()
-        logger.info(
-            "Idempotency race resolved for client_request_id=%s", effective_request_id
-        )
-        from sqlalchemy.orm import selectinload
-        stmt3 = (
-            select(IdentificationRequest)
-            .options(selectinload(IdentificationRequest.candidates))
-            .where(IdentificationRequest.client_request_id == effective_request_id)
-        )
-        result3 = await db.execute(stmt3)
-        existing3 = result3.scalar_one_or_none()
-        if existing3:
-            return _reconstruct_response_from_record(existing3, client_request_id)
-        # Persistence failed entirely after race resolution; return the in-memory result
-        logger.error(
-            "Could not resolve idempotency race for client_request_id=%s", effective_request_id
-        )
+    await _record_success(
+        db,
+        active_request_id,
+        provider_id=provider_result.provider_id,
+        model_version=provider_result.model_version,
+        outcome=outcome,
+        top_confidence_level=top_level,
+        execution_duration_ms=execution_duration_ms,
+        enriched_candidates=enriched,
+        now=completed_now,
+    )
 
     return IdentificationResponse(
         outcome=outcome,

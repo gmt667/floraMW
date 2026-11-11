@@ -569,176 +569,152 @@ class TestIdempotency:
 
 
 # ===========================================================================
-# SECTION 4: Identification History API
+# SECTION 4: Identification History API & Query Service
 # ===========================================================================
 
 
-class TestIdentificationHistoryList:
-    async def test_list_identifications_returns_200(self, client):
-        """GET /api/v1/identifications returns 200."""
+class TestIdentificationHistoryEndpointsFailClosed:
+    """Phase 3.1 SEC-01 & SEC-02: Public history endpoints must fail closed
+
+    with HTTP 503 pending Phase 4 authentication integration.
+    Zero historical records, candidate data, or user metadata may be disclosed.
+    """
+
+    async def test_list_identifications_returns_503(self, client):
+        """GET /api/v1/identifications returns 503 Service Unavailable."""
         resp = await client.get("/api/v1/identifications")
-        assert resp.status_code == 200
-
-    async def test_list_identifications_response_schema(self, client):
-        """Response schema matches IdentificationHistoryListResponse."""
-        resp = await client.get("/api/v1/identifications")
+        assert resp.status_code == 503
         body = resp.json()
-        assert "total" in body
-        assert "page" in body
-        assert "limit" in body
-        assert "total_pages" in body
-        assert "has_more" in body
-        assert "items" in body
-        assert isinstance(body["items"], list)
+        assert "temporarily unavailable pending user authentication" in body["detail"]
+        assert "items" not in body
+        assert "total" not in body
 
-    async def test_list_identifications_pagination_defaults(self, client):
-        """Default pagination is page=1, limit=20."""
-        resp = await client.get("/api/v1/identifications")
+    async def test_list_identifications_with_filters_returns_503(self, client):
+        """GET /api/v1/identifications with query params still returns 503."""
+        resp = await client.get("/api/v1/identifications?outcome=candidates&limit=5")
+        assert resp.status_code == 503
         body = resp.json()
-        assert body["page"] == 1
-        assert body["limit"] == 20
+        assert "temporarily unavailable pending user authentication" in body["detail"]
 
-    async def test_list_identifications_outcome_filter(self, client):
-        """Filter by outcome returns only matching records."""
-        # First create a known record
-        img = _make_jpeg_bytes()
-        await client.post(
-            "/api/v1/identifications",
-            files={"image": ("test.jpg", img, "image/jpeg")},
-        )
-
-        resp = await client.get("/api/v1/identifications?outcome=candidates")
-        assert resp.status_code == 200
-        body = resp.json()
-        for item in body["items"]:
-            assert item["outcome"] == "candidates"
-
-    async def test_list_identifications_invalid_outcome_returns_400(self, client):
-        """Invalid outcome filter returns 400."""
-        resp = await client.get("/api/v1/identifications?outcome=invalid_value")
-        assert resp.status_code == 400
-
-    async def test_list_identifications_items_have_required_fields(self, client):
-        """Each history item has the required fields."""
-        img = _make_jpeg_bytes()
-        await client.post(
-            "/api/v1/identifications",
-            files={"image": ("test.jpg", img, "image/jpeg")},
-        )
-
-        resp = await client.get("/api/v1/identifications")
-        body = resp.json()
-        if body["items"]:
-            item = body["items"][0]
-            assert "id" in item
-            assert "outcome" in item
-            assert "provider_id" in item
-            assert "image_format" in item
-            assert "created_at" in item
-            assert "candidate_count" in item
-
-    async def test_list_identifications_created_after_filter(self, client):
-        """created_after filter restricts results to records after the given datetime."""
-        future_time = "2099-01-01T00:00:00Z"
-        resp = await client.get(f"/api/v1/identifications?created_after={future_time}")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["total"] == 0
-
-    async def test_list_identifications_invalid_datetime_returns_400(self, client):
-        """Invalid datetime format returns 400."""
-        resp = await client.get("/api/v1/identifications?created_after=not-a-date")
-        assert resp.status_code == 400
-
-
-class TestIdentificationHistoryDetail:
-    async def test_get_identification_valid_id_returns_200(self, client):
-        """GET /api/v1/identifications/{id} returns 200 for existing record."""
-        img = _make_jpeg_bytes()
-        req_id = str(uuid.uuid4())
-        await client.post(
-            "/api/v1/identifications",
-            files={"image": ("test.jpg", img, "image/jpeg")},
-            headers={"X-Client-Request-Id": req_id},
-        )
-
-        list_resp = await client.get(f"/api/v1/identifications?limit=1")
-        items = list_resp.json()["items"]
-        if not items:
-            pytest.skip("No records to retrieve")
-
-        record_id = items[0]["id"]
-        detail_resp = await client.get(f"/api/v1/identifications/{record_id}")
-        assert detail_resp.status_code == 200
-
-    async def test_get_identification_includes_candidates(self, client):
-        """Detail endpoint includes candidates list."""
-        img = _make_jpeg_bytes()
-        await client.post(
-            "/api/v1/identifications",
-            files={"image": ("test.jpg", img, "image/jpeg")},
-        )
-
-        list_resp = await client.get("/api/v1/identifications?limit=1")
-        items = list_resp.json()["items"]
-        if not items:
-            pytest.skip("No records to retrieve")
-
-        record_id = items[0]["id"]
-        detail_resp = await client.get(f"/api/v1/identifications/{record_id}")
-        body = detail_resp.json()
-        assert "candidates" in body
-        assert isinstance(body["candidates"], list)
-
-    async def test_get_identification_unknown_id_returns_404(self, client):
-        """GET /api/v1/identifications/{id} returns 404 for unknown UUID."""
+    async def test_get_identification_valid_uuid_returns_503(self, client):
+        """GET /api/v1/identifications/{id} returns 503 Service Unavailable."""
         fake_id = str(uuid.uuid4())
         resp = await client.get(f"/api/v1/identifications/{fake_id}")
-        assert resp.status_code == 404
+        assert resp.status_code == 503
+        body = resp.json()
+        assert "temporarily unavailable pending user authentication" in body["detail"]
+        assert "candidates" not in body
 
-    async def test_get_identification_invalid_uuid_returns_404(self, client):
-        """Non-UUID path parameter returns 404."""
+    async def test_get_identification_invalid_uuid_returns_503(self, client):
+        """Non-UUID path parameter also fails closed with 503."""
         resp = await client.get("/api/v1/identifications/not-a-uuid")
-        assert resp.status_code == 404
+        assert resp.status_code == 503
+        body = resp.json()
+        assert "temporarily unavailable pending user authentication" in body["detail"]
 
-    async def test_get_identification_provider_field_present(self, client):
-        """Detail response includes provider metadata."""
+
+class TestIdentificationHistoryQueryService:
+    """Unit tests for the underlying query service (fetch_identification_history_list
+
+    and fetch_identification_detail) which use optimized correlated subqueries.
+    """
+
+    async def test_history_list_query_service_returns_data(self, client, db_session):
+        from app.api.v1.identification_history import fetch_identification_history_list
+
         img = _make_jpeg_bytes()
         await client.post(
             "/api/v1/identifications",
             files={"image": ("test.jpg", img, "image/jpeg")},
         )
 
-        list_resp = await client.get("/api/v1/identifications?limit=1")
-        items = list_resp.json()["items"]
-        if not items:
-            pytest.skip("No records to retrieve")
+        res = await fetch_identification_history_list(db_session, page=1, limit=20)
+        assert res.total >= 1
+        assert res.page == 1
+        assert res.limit == 20
+        assert isinstance(res.items, list)
+        item = res.items[0]
+        assert item.id is not None
+        assert item.outcome in ("candidates", "no_match", "demo_mode")
+        assert item.candidate_count >= 0
 
-        record_id = items[0]["id"]
-        detail_resp = await client.get(f"/api/v1/identifications/{record_id}")
-        body = detail_resp.json()
-        assert "provider" in body
-        assert "provider_id" in body["provider"]
+    async def test_history_list_outcome_filter(self, client, db_session):
+        from app.api.v1.identification_history import fetch_identification_history_list
 
-    async def test_get_identification_candidate_ranks_ordered(self, client):
-        """Candidates in detail response are ordered by rank ascending."""
         img = _make_jpeg_bytes()
         await client.post(
             "/api/v1/identifications",
             files={"image": ("test.jpg", img, "image/jpeg")},
         )
 
-        list_resp = await client.get("/api/v1/identifications?limit=1")
-        items = list_resp.json()["items"]
-        if not items:
-            pytest.skip("No records")
+        res = await fetch_identification_history_list(db_session, outcome="candidates")
+        for item in res.items:
+            assert item.outcome == "candidates"
 
-        record_id = items[0]["id"]
-        detail_resp = await client.get(f"/api/v1/identifications/{record_id}")
-        candidates = detail_resp.json().get("candidates", [])
-        if candidates:
-            ranks = [c["rank"] for c in candidates]
+    async def test_history_list_invalid_outcome_raises_400(self, db_session):
+        from fastapi import HTTPException
+        from app.api.v1.identification_history import fetch_identification_history_list
+
+        with pytest.raises(HTTPException) as exc_info:
+            await fetch_identification_history_list(db_session, outcome="invalid_value")
+        assert exc_info.value.status_code == 400
+
+    async def test_history_list_created_after_filter(self, db_session):
+        from app.api.v1.identification_history import fetch_identification_history_list
+
+        future_time = "2099-01-01T00:00:00Z"
+        res = await fetch_identification_history_list(db_session, created_after=future_time)
+        assert res.total == 0
+        assert len(res.items) == 0
+
+    async def test_history_list_invalid_datetime_raises_400(self, db_session):
+        from fastapi import HTTPException
+        from app.api.v1.identification_history import fetch_identification_history_list
+
+        with pytest.raises(HTTPException) as exc_info:
+            await fetch_identification_history_list(db_session, created_after="not-a-date")
+        assert exc_info.value.status_code == 400
+
+    async def test_history_detail_query_service(self, client, db_session):
+        from app.api.v1.identification_history import (
+            fetch_identification_detail,
+            fetch_identification_history_list,
+        )
+
+        img = _make_jpeg_bytes()
+        await client.post(
+            "/api/v1/identifications",
+            files={"image": ("test.jpg", img, "image/jpeg")},
+        )
+
+        list_res = await fetch_identification_history_list(db_session, limit=1)
+        assert len(list_res.items) > 0
+        target_id = list_res.items[0].id
+
+        detail = await fetch_identification_detail(str(target_id), db_session)
+        assert detail.id == str(target_id)
+        assert detail.provider is not None
+        assert isinstance(detail.candidates, list)
+        if detail.candidates:
+            ranks = [c.rank for c in detail.candidates]
             assert ranks == sorted(ranks)
+
+    async def test_history_detail_unknown_id_raises_404(self, db_session):
+        from fastapi import HTTPException
+        from app.api.v1.identification_history import fetch_identification_detail
+
+        fake_id = str(uuid.uuid4())
+        with pytest.raises(HTTPException) as exc_info:
+            await fetch_identification_detail(fake_id, db_session)
+        assert exc_info.value.status_code == 404
+
+    async def test_history_detail_invalid_uuid_raises_404(self, db_session):
+        from fastapi import HTTPException
+        from app.api.v1.identification_history import fetch_identification_detail
+
+        with pytest.raises(HTTPException) as exc_info:
+            await fetch_identification_detail("not-a-uuid", db_session)
+        assert exc_info.value.status_code == 404
 
 
 # ===========================================================================
