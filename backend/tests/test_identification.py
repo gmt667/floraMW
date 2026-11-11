@@ -18,8 +18,6 @@ from __future__ import annotations
 
 import io
 import math
-from datetime import datetime, timezone
-from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pydantic
@@ -50,15 +48,14 @@ from app.identification.provider import (
     normalise_scientific_name,
 )
 from app.identification.service import (
-    _confidence_level,
     _validate_candidate,
+    confidence_level,
     run_identification,
 )
 from app.schemas.identification import (
     ConfidenceLevel,
     IdentificationCandidateOut,
     IdentificationErrorCode,
-    IdentificationErrorResponse,
     IdentificationOutcome,
 )
 
@@ -406,14 +403,14 @@ class TestConfidenceAndValidation:
             m.CONFIDENCE_THRESHOLD_HIGH = 0.70
             m.CONFIDENCE_THRESHOLD_MODERATE = 0.45
             m.CONFIDENCE_THRESHOLD_LOW = 0.20
-            assert _confidence_level(0.90) == ConfidenceLevel.HIGH
-            assert _confidence_level(0.70) == ConfidenceLevel.HIGH
-            assert _confidence_level(0.60) == ConfidenceLevel.MODERATE
-            assert _confidence_level(0.45) == ConfidenceLevel.MODERATE
-            assert _confidence_level(0.30) == ConfidenceLevel.LOW
-            assert _confidence_level(0.20) == ConfidenceLevel.LOW
-            assert _confidence_level(0.10) == ConfidenceLevel.UNCERTAIN
-            assert _confidence_level(0.0) == ConfidenceLevel.UNCERTAIN
+            assert confidence_level(0.90) == ConfidenceLevel.HIGH
+            assert confidence_level(0.70) == ConfidenceLevel.HIGH
+            assert confidence_level(0.60) == ConfidenceLevel.MODERATE
+            assert confidence_level(0.45) == ConfidenceLevel.MODERATE
+            assert confidence_level(0.30) == ConfidenceLevel.LOW
+            assert confidence_level(0.20) == ConfidenceLevel.LOW
+            assert confidence_level(0.10) == ConfidenceLevel.UNCERTAIN
+            assert confidence_level(0.0) == ConfidenceLevel.UNCERTAIN
 
     def test_validate_candidate_rejects_nan(self):
         c = ProviderCandidate(scientific_name="Hibiscus rosa-sinensis", confidence=float("nan"))

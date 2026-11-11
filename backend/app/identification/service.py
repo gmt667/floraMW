@@ -54,7 +54,6 @@ from app.identification.catalogue_matching import match_scientific_name
 from app.identification.exceptions import (
     EmptyUploadError,
     FileTooLargeError,
-    IdempotencyConflictError,
     ImageDecodingError,
     ImageDimensionError,
     ImageValidationError,
@@ -104,7 +103,7 @@ _NO_MATCH_GUIDANCE_ACTIONS = [
 ]
 
 
-def _confidence_level(score: float) -> ConfidenceLevel:
+def confidence_level(score: float) -> ConfidenceLevel:
     """Map a numeric confidence score to a labelled band."""
     if score >= settings.CONFIDENCE_THRESHOLD_HIGH:
         return ConfidenceLevel.HIGH
@@ -237,7 +236,7 @@ def _reconstruct_response_from_record(
         except (json.JSONDecodeError, TypeError):
             common_names = []
 
-        level = _confidence_level(cand.confidence)
+        level = confidence_level(cand.confidence)
         candidates_out.append(
             IdentificationCandidateOut(
                 scientific_name=cand.scientific_name,
@@ -896,7 +895,7 @@ async def run_identification(
     # ------------------------------------------------------------------
     enriched: list[IdentificationCandidateOut] = []
     for pc in valid_candidates:
-        level = _confidence_level(pc.confidence)
+        level = confidence_level(pc.confidence)
         matched = False
         plant_id = None
         try:

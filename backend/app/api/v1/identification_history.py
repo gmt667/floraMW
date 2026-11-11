@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.identification.service import _confidence_level
+from app.identification.service import confidence_level
 from app.models.identification import IdentificationCandidate, IdentificationRequest
 from app.schemas.history import (
     IdentificationCandidateHistoryOut,
@@ -217,7 +217,7 @@ async def fetch_identification_detail(
         except (json.JSONDecodeError, TypeError):
             common_names = []
 
-        level = _confidence_level(cand.confidence)
+        level = confidence_level(cand.confidence)
         candidates_out.append(
             IdentificationCandidateHistoryOut(
                 rank=cand.rank,

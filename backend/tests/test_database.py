@@ -53,3 +53,14 @@ async def test_foreign_key_invalid_insert_rejected(db_session: AsyncSession):
 
     await db_session.rollback()
 
+
+def test_engine_pool_resilience_configuration():
+    """Verify that the application database engine has pool_pre_ping and pool_recycle enabled.
+
+    In production PostgreSQL deployments, firewalls and load balancers drop idle TCP
+    connections. pool_pre_ping=True prevents stale connection failures (HTTP 500),
+    and pool_recycle limits maximum connection lifespan.
+    """
+    assert async_engine.sync_engine.pool._pre_ping is True
+    assert async_engine.sync_engine.pool._recycle == 1800
+
