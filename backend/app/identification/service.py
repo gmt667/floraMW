@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status as http_status_codes
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -297,32 +297,56 @@ async def _record_failure(
     db: AsyncSession,
     request_id: uuid.UUID,
     *,
+    expected_lease_version: int,
     error_code: str,
     error_message: str,
     execution_duration_ms: int,
-) -> None:
-    """Persist a failed identification attempt in the database."""
+) -> bool:
+    """Persist a failed identification attempt conditioned on lease fencing ownership.
+
+    Returns True if successfully persisted, or False if this worker's lease was
+    superseded by a newer lease version (preventing stale failure overwrites).
+    """
     try:
-        stmt = select(IdentificationRequest).where(IdentificationRequest.id == request_id)
+        stmt = (
+            update(IdentificationRequest)
+            .where(
+                IdentificationRequest.id == request_id,
+                IdentificationRequest.lease_version == expected_lease_version,
+                IdentificationRequest.status == "processing",
+            )
+            .values(
+                status="failed",
+                outcome="failed",
+                error_code=error_code,
+                error_message=_sanitize_error_message(error_message),
+                execution_duration_ms=execution_duration_ms,
+                completed_at=datetime.now(timezone.utc),
+            )
+        )
         result = await db.execute(stmt)
-        req = result.scalar_one_or_none()
-        if req is not None:
-            req.status = "failed"
-            req.outcome = "failed"
-            req.error_code = error_code
-            req.error_message = _sanitize_error_message(error_message)
-            req.execution_duration_ms = execution_duration_ms
-            req.completed_at = datetime.now(timezone.utc)
-            await db.commit()
+        if result.rowcount == 0:
+            logger.warning(
+                "Stale worker failure rejected by lease fence: request_id=%s, version=%d",
+                request_id,
+                expected_lease_version,
+            )
+            await db.rollback()
+            return False
+
+        await db.commit()
+        return True
     except Exception as exc:
         logger.error("Failed to persist identification failure status: %s", exc)
         await db.rollback()
+        return False
 
 
 async def _record_success(
     db: AsyncSession,
     request_id: uuid.UUID,
     *,
+    expected_lease_version: int,
     provider_id: str,
     model_version: Optional[str],
     outcome: IdentificationOutcome,
@@ -330,32 +354,53 @@ async def _record_success(
     execution_duration_ms: int,
     enriched_candidates: list[IdentificationCandidateOut],
     now: datetime,
-) -> None:
-    """Transition a reserved request to completed and persist its candidates."""
-    stmt = select(IdentificationRequest).where(IdentificationRequest.id == request_id)
-    result = await db.execute(stmt)
-    req = result.scalar_one()
+) -> bool:
+    """Transition a reserved request to completed and persist candidates if lease is valid.
 
+    Returns True if successfully committed, or False if this worker was fenced out
+    by a newer lease recovery (preventing stale result overwrites and duplicate candidates).
+    """
     model_id = None
     if provider_id == "internal":
         model_id = settings.INTERNAL_MODEL_ID
 
-    req.status = "completed"
-    req.outcome = outcome.value
-    req.provider_id = provider_id
-    req.model_id = model_id
-    req.model_version = model_version
-    req.top_confidence_level = (
-        top_confidence_level.value if top_confidence_level else None
+    # Step 1: Conditionally update request state only if lease_version matches exactly
+    stmt = (
+        update(IdentificationRequest)
+        .where(
+            IdentificationRequest.id == request_id,
+            IdentificationRequest.lease_version == expected_lease_version,
+            IdentificationRequest.status == "processing",
+        )
+        .values(
+            status="completed",
+            outcome=outcome.value,
+            provider_id=provider_id,
+            model_id=model_id,
+            model_version=model_version,
+            top_confidence_level=(
+                top_confidence_level.value if top_confidence_level else None
+            ),
+            execution_duration_ms=execution_duration_ms,
+            completed_at=now,
+        )
     )
-    req.execution_duration_ms = execution_duration_ms
-    req.completed_at = now
+    result = await db.execute(stmt)
+    if result.rowcount == 0:
+        logger.warning(
+            "Stale worker completion rejected by lease fence: request_id=%s, version=%d",
+            request_id,
+            expected_lease_version,
+        )
+        await db.rollback()
+        return False
 
+    # Step 2: Insert candidates only after confirming this worker owns the active lease
     for rank, cand in enumerate(enriched_candidates, start=1):
         common_names_json = json.dumps(cand.common_names or [])
         candidate = IdentificationCandidate(
             id=uuid.uuid4(),
-            request_id=req.id,
+            request_id=request_id,
             rank=rank,
             scientific_name=cand.scientific_name,
             common_names=common_names_json,
@@ -369,6 +414,7 @@ async def _record_success(
         db.add(candidate)
 
     await db.commit()
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -469,6 +515,7 @@ async def run_identification(
     existing = result.scalar_one_or_none()
 
     active_request_id: uuid.UUID
+    assigned_lease_version: int
 
     if existing is not None:
         # Check payload fingerprint match
@@ -525,30 +572,100 @@ async def run_identification(
                     ).model_dump(mode="json"),
                 )
             else:
-                # Lease expired / abandoned processing: recover reservation
+                # Lease expired / abandoned processing: recover reservation with fenced increment
                 logger.warning(
-                    "Recovering abandoned identification lease (elapsed: %.1fs): %s",
+                    "Recovering abandoned identification lease (elapsed: %.1fs, current version: %d): %s",
                     elapsed,
+                    existing.lease_version,
                     effective_request_id,
                 )
-                existing.created_at = now
-                existing.provider_id = provider.provider_id
+                target_version = existing.lease_version
+                next_version = target_version + 1
+                reclaim_stmt = (
+                    update(IdentificationRequest)
+                    .where(
+                        IdentificationRequest.id == existing.id,
+                        IdentificationRequest.lease_version == target_version,
+                        IdentificationRequest.status == "processing",
+                    )
+                    .values(
+                        lease_version=next_version,
+                        created_at=now,
+                        provider_id=provider.provider_id,
+                    )
+                )
+                reclaim_res = await db.execute(reclaim_stmt)
                 await db.commit()
+                if reclaim_res.rowcount == 0:
+                    # Race: another worker won lease reclamation or completed
+                    stmt_latest = (
+                        select(IdentificationRequest)
+                        .options(selectinload(IdentificationRequest.candidates))
+                        .where(IdentificationRequest.id == existing.id)
+                    )
+                    latest_res = await db.execute(stmt_latest)
+                    latest_req = latest_res.scalar_one()
+                    if latest_req.status == "completed":
+                        return _reconstruct_response_from_record(latest_req, client_request_id)
+                    raise HTTPException(
+                        status_code=http_status_codes.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail=IdentificationErrorResponse(
+                            error_code=IdentificationErrorCode.PROVIDER_UNAVAILABLE,
+                            message="This identification request is currently being processed. Please retry in a few seconds.",
+                            retryable=True,
+                        ).model_dump(mode="json"),
+                    )
+
                 active_request_id = existing.id
+                assigned_lease_version = next_version
         else:
-            # Previous attempt had failed: allow recovery/retry
+            # Previous attempt had failed: allow recovery/retry with fenced increment
             logger.info(
                 "Retrying previously failed identification request: %s",
                 effective_request_id,
             )
-            existing.status = "processing"
-            existing.outcome = "processing"
-            existing.created_at = now
-            existing.error_code = None
-            existing.error_message = None
-            existing.completed_at = None
+            target_version = existing.lease_version
+            next_version = target_version + 1
+            retry_stmt = (
+                update(IdentificationRequest)
+                .where(
+                    IdentificationRequest.id == existing.id,
+                    IdentificationRequest.lease_version == target_version,
+                    IdentificationRequest.status == "failed",
+                )
+                .values(
+                    lease_version=next_version,
+                    status="processing",
+                    outcome="processing",
+                    created_at=now,
+                    error_code=None,
+                    error_message=None,
+                    completed_at=None,
+                )
+            )
+            retry_res = await db.execute(retry_stmt)
             await db.commit()
+            if retry_res.rowcount == 0:
+                stmt_latest = (
+                    select(IdentificationRequest)
+                    .options(selectinload(IdentificationRequest.candidates))
+                    .where(IdentificationRequest.id == existing.id)
+                )
+                latest_res = await db.execute(stmt_latest)
+                latest_req = latest_res.scalar_one()
+                if latest_req.status == "completed":
+                    return _reconstruct_response_from_record(latest_req, client_request_id)
+                raise HTTPException(
+                    status_code=http_status_codes.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=IdentificationErrorResponse(
+                        error_code=IdentificationErrorCode.PROVIDER_UNAVAILABLE,
+                        message="This identification request is currently being processed. Please retry in a few seconds.",
+                        retryable=True,
+                    ).model_dump(mode="json"),
+                )
+
             active_request_id = existing.id
+            assigned_lease_version = next_version
 
     else:
         # Create new processing reservation and commit BEFORE calling provider
@@ -558,6 +675,7 @@ async def run_identification(
             user_id=user_id,
             status="processing",
             outcome="processing",
+            lease_version=1,
             image_sha256=image_sha256,
             image_format=image_payload.format,
             image_size_bytes=image_payload.size_bytes,
@@ -572,6 +690,7 @@ async def run_identification(
         try:
             await db.commit()
             active_request_id = new_reservation.id
+            assigned_lease_version = 1
         except IntegrityError:
             # Race condition: concurrent request inserted same client_request_id
             await db.rollback()
@@ -626,6 +745,7 @@ async def run_identification(
         await _record_failure(
             db,
             active_request_id,
+            expected_lease_version=assigned_lease_version,
             error_code=IdentificationErrorCode.IDENTIFICATION_DISABLED.value,
             error_message=str(exc),
             execution_duration_ms=duration_ms,
@@ -645,6 +765,7 @@ async def run_identification(
         await _record_failure(
             db,
             active_request_id,
+            expected_lease_version=assigned_lease_version,
             error_code=IdentificationErrorCode.PROVIDER_UNAVAILABLE.value,
             error_message=str(exc),
             execution_duration_ms=duration_ms,
@@ -661,6 +782,7 @@ async def run_identification(
         await _record_failure(
             db,
             active_request_id,
+            expected_lease_version=assigned_lease_version,
             error_code=IdentificationErrorCode.PROVIDER_TIMEOUT.value,
             error_message=str(exc),
             execution_duration_ms=duration_ms,
@@ -677,6 +799,7 @@ async def run_identification(
         await _record_failure(
             db,
             active_request_id,
+            expected_lease_version=assigned_lease_version,
             error_code=IdentificationErrorCode.PROVIDER_ERROR.value,
             error_message=str(exc),
             execution_duration_ms=duration_ms,
@@ -693,6 +816,7 @@ async def run_identification(
         await _record_failure(
             db,
             active_request_id,
+            expected_lease_version=assigned_lease_version,
             error_code=IdentificationErrorCode.PROVIDER_ERROR.value,
             error_message=str(exc),
             execution_duration_ms=duration_ms,
@@ -721,9 +845,10 @@ async def run_identification(
     # Step 6: Handle NO_MATCH outcome
     # ------------------------------------------------------------------
     if not valid_candidates:
-        await _record_success(
+        committed = await _record_success(
             db,
             active_request_id,
+            expected_lease_version=assigned_lease_version,
             provider_id=provider_result.provider_id,
             model_version=provider_result.model_version,
             outcome=IdentificationOutcome.NO_MATCH,
@@ -732,6 +857,25 @@ async def run_identification(
             enriched_candidates=[],
             now=completed_now,
         )
+        if not committed:
+            stmt_latest = (
+                select(IdentificationRequest)
+                .options(selectinload(IdentificationRequest.candidates))
+                .where(IdentificationRequest.id == active_request_id)
+            )
+            latest_res = await db.execute(stmt_latest)
+            latest_req = latest_res.scalar_one()
+            if latest_req.status == "completed":
+                return _reconstruct_response_from_record(latest_req, client_request_id)
+            raise HTTPException(
+                status_code=http_status_codes.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=IdentificationErrorResponse(
+                    error_code=IdentificationErrorCode.PROVIDER_UNAVAILABLE,
+                    message="This identification request was reclaimed by another worker. Please retry shortly.",
+                    retryable=True,
+                ).model_dump(mode="json"),
+            )
+
         return IdentificationResponse(
             outcome=IdentificationOutcome.NO_MATCH,
             candidates=[],
@@ -802,9 +946,10 @@ async def run_identification(
     # ------------------------------------------------------------------
     # Step 9: Atomic Database Completion Commit
     # ------------------------------------------------------------------
-    await _record_success(
+    committed = await _record_success(
         db,
         active_request_id,
+        expected_lease_version=assigned_lease_version,
         provider_id=provider_result.provider_id,
         model_version=provider_result.model_version,
         outcome=outcome,
@@ -813,6 +958,24 @@ async def run_identification(
         enriched_candidates=enriched,
         now=completed_now,
     )
+    if not committed:
+        stmt_latest = (
+            select(IdentificationRequest)
+            .options(selectinload(IdentificationRequest.candidates))
+            .where(IdentificationRequest.id == active_request_id)
+        )
+        latest_res = await db.execute(stmt_latest)
+        latest_req = latest_res.scalar_one()
+        if latest_req.status == "completed":
+            return _reconstruct_response_from_record(latest_req, client_request_id)
+        raise HTTPException(
+            status_code=http_status_codes.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=IdentificationErrorResponse(
+                error_code=IdentificationErrorCode.PROVIDER_UNAVAILABLE,
+                message="This identification request was reclaimed by another worker. Please retry shortly.",
+                retryable=True,
+            ).model_dump(mode="json"),
+        )
 
     return IdentificationResponse(
         outcome=outcome,

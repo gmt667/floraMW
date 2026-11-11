@@ -120,6 +120,21 @@ async def setup_test_db():
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+async def cleanup_dynamic_tables():
+    """Ensure dynamic identification records are purged after each test for clean isolation.
+
+    Reference data (plants, districts, sections, sources, distributions, users) is preserved.
+    """
+    yield
+    async with TestingSessionLocal() as session:
+        await session.execute(text("DELETE FROM identification_candidates"))
+        await session.execute(text("DELETE FROM identification_requests"))
+        await session.execute(text("DELETE FROM model_versions"))
+        await session.execute(text("DELETE FROM dataset_versions"))
+        await session.commit()
+
+
 @pytest.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Yield a database session within a transaction for test assertions."""

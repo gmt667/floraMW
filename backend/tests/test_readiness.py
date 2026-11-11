@@ -19,8 +19,8 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 FLORAMW_DB_PATH = BACKEND_DIR / "floramw.db"
 
 
-def _create_base_schema(conn, revision: str = "0003_add_identification_persistence_and_ml_registry"):
-    """Helper to construct a valid schema matching revision 0003 on an isolated connection."""
+def _create_base_schema(conn, revision: str = "0004_add_lease_fencing_and_candidate_rank_constraint"):
+    """Helper to construct a valid schema matching revision 0004 on an isolated connection."""
     conn.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY)"))
     conn.execute(text(f"INSERT INTO alembic_version (version_num) VALUES ('{revision}')"))
 
@@ -62,7 +62,7 @@ def _create_base_schema(conn, revision: str = "0003_add_identification_persisten
     conn.execute(text(
         "CREATE TABLE identification_requests ("
         "id CHAR(36) PRIMARY KEY, client_request_id VARCHAR(128) NOT NULL UNIQUE, user_id CHAR(36), "
-        "status VARCHAR(30) NOT NULL, image_sha256 VARCHAR(64) NOT NULL, image_format VARCHAR(10) NOT NULL, "
+        "status VARCHAR(30) NOT NULL, lease_version INTEGER NOT NULL DEFAULT 1, image_sha256 VARCHAR(64) NOT NULL, image_format VARCHAR(10) NOT NULL, "
         "image_size_bytes INTEGER NOT NULL, image_width_px INTEGER, image_height_px INTEGER, "
         "provider_id VARCHAR(100) NOT NULL, model_id VARCHAR(100), model_version VARCHAR(50), "
         "outcome VARCHAR(30) NOT NULL, top_confidence_level VARCHAR(20), execution_duration_ms INTEGER, "
@@ -94,16 +94,16 @@ def _create_base_schema(conn, revision: str = "0003_add_identification_persisten
 def test_get_expected_migration_head():
     """Verify that get_expected_migration_head returns the current Alembic head revision."""
     head = get_expected_migration_head()
-    assert head == "0003_add_identification_persistence_and_ml_registry"
+    assert head == "0004_add_lease_fencing_and_candidate_rank_constraint"
 
 
 def test_readiness_valid_schema_and_head_accepted():
     """A database with the full expected schema and matching Alembic head passes verification."""
     engine = create_engine("sqlite:///:memory:")
     with engine.connect() as conn:
-        _create_base_schema(conn, "0003_add_identification_persistence_and_ml_registry")
+        _create_base_schema(conn, "0004_add_lease_fencing_and_candidate_rank_constraint")
         # Should execute cleanly without raising any exception
-        verify_database_readiness(conn, expected_head="0003_add_identification_persistence_and_ml_registry")
+        verify_database_readiness(conn, expected_head="0004_add_lease_fencing_and_candidate_rank_constraint")
 
 
 def test_readiness_missing_alembic_version_rejected():

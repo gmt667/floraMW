@@ -59,6 +59,14 @@ class IdentificationRequest(Base):
         index=True,
         doc="Processing status: 'processing', 'completed', 'failed'.",
     )
+    lease_version = Column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+        index=True,
+        doc="Monotonically increasing fencing token incremented on each reservation or reclamation.",
+    )
     image_sha256 = Column(
         String(64),
         nullable=False,
@@ -157,7 +165,7 @@ class IdentificationCandidate(Base):
         UniqueConstraint(
             "request_id",
             "rank",
-            name="uq_identification_request_rank",
+            name="uq_identification_candidates_request_rank",
         ),
     )
 
