@@ -3,3 +3,4 @@ analyzer:
     - build/**
     - android/**
     - ios/**
+    - web/**
