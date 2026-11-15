@@ -900,6 +900,7 @@ class TestIdentificationEndpoint:
         assert response.status_code == 400
         detail = response.json()["detail"]
         assert "64 characters" in detail["message"]
+        assert detail["error_code"] == IdentificationErrorCode.REQUEST_VALIDATION_FAILED
 
     @pytest.mark.asyncio
     async def test_empty_file_returns_400(self, client: AsyncClient):
@@ -1036,3 +1037,70 @@ class TestIdentificationEndpoint:
         r = await client.get("/health")
         assert r.status_code == 200
         assert r.json()["status"] == "healthy"
+
+    # -----------------------------------------------------------------------
+    # Phase 4.5 — Identification API Readiness & Flutter Compatibility
+    # -----------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_response_contains_candidate_ids_matching_flutter_contract(
+        self, client: AsyncClient
+    ):
+        """IdentificationResponse includes candidate_ids directly compatible with Flutter candidateIds."""
+        response = await client.post(
+            "/api/v1/identifications",
+            files={"image": ("plant.jpg", TINY_JPEG, "image/jpeg")},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "candidate_ids" in data
+        assert isinstance(data["candidate_ids"], list)
+        assert len(data["candidate_ids"]) > 0
+        # In demo mode, returns the 3 matched catalog plants
+        assert data["candidate_ids"] == ["hibiscus", "periwinkle", "marigold"]
+        assert data["provider"]["is_demo"] is True
+
+    @pytest.mark.asyncio
+    async def test_candidate_ids_all_retrievable_via_catalogue_api(
+        self, client: AsyncClient
+    ):
+        """Every returned candidate_id corresponds to a published plant in GET /api/v1/plants/{id}."""
+        response = await client.post(
+            "/api/v1/identifications",
+            files={"image": ("plant.jpg", TINY_JPEG, "image/jpeg")},
+        )
+        assert response.status_code == 200
+        candidate_ids = response.json()["candidate_ids"]
+
+        for plant_id in candidate_ids:
+            cat_resp = await client.get(f"/api/v1/plants/{plant_id}")
+            assert cat_resp.status_code == 200, f"Candidate {plant_id} not found in catalogue"
+            plant_data = cat_resp.json()
+            assert plant_data["id"] == plant_id
+            assert "name" in plant_data
+            assert "scientific" in plant_data
+
+    @pytest.mark.asyncio
+    async def test_missing_multipart_image_field_returns_422(
+        self, client: AsyncClient
+    ):
+        """POST /api/v1/identifications with missing image payload returns 422."""
+        response = await client.post(
+            "/api/v1/identifications",
+            data={"wrong_field": "some_value"},
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_identification_response_privacy_no_user_leakage(
+        self, client: AsyncClient
+    ):
+        """Identification response never leaks user IDs, hashes, or internal secrets."""
+        response = await client.post(
+            "/api/v1/identifications",
+            files={"image": ("plant.jpg", TINY_JPEG, "image/jpeg")},
+        )
+        assert response.status_code == 200
+        text_lower = response.text.lower()
+        for sensitive in ("password", "device_token", "hash", "secret", "user_id"):
+            assert sensitive not in text_lower, f"Found sensitive key '{sensitive}' in response"

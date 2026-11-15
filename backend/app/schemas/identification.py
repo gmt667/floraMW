@@ -72,6 +72,7 @@ class IdentificationErrorCode(str, Enum):
         PROVIDER_TIMEOUT:     Provider timed out. HTTP 504.
         PROVIDER_ERROR:       Provider returned invalid response. HTTP 502.
         IDENTIFICATION_DISABLED: No provider configured for this environment. HTTP 503.
+        REQUEST_VALIDATION_FAILED: Invalid headers, parameters, or request metadata. HTTP 400.
     """
 
     IMAGE_EMPTY = "image_empty"
@@ -83,6 +84,10 @@ class IdentificationErrorCode(str, Enum):
     PROVIDER_TIMEOUT = "provider_timeout"
     PROVIDER_ERROR = "provider_error"
     IDENTIFICATION_DISABLED = "identification_disabled"
+    REQUEST_VALIDATION_FAILED = "request_validation_failed"
+    RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
+    AUTHENTICATION_REQUIRED = "authentication_required"
+    AUTHENTICATION_FAILED = "authentication_failed"
 
 
 # ---------------------------------------------------------------------------
@@ -262,6 +267,13 @@ class IdentificationResponse(BaseModel):
         description=(
             "Ordered list of species candidates (highest confidence first). "
             "Empty when outcome is NO_MATCH."
+        ),
+    )
+    candidate_ids: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Ordered list of catalogue plant slug IDs from matched candidates, "
+            "directly compatible with Flutter IdentificationResult.candidateIds."
         ),
     )
     top_confidence_level: Optional[ConfidenceLevel] = Field(

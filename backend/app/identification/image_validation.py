@@ -24,6 +24,11 @@ import io
 import logging
 
 from PIL import Image, ImageOps, UnidentifiedImageError
+try:
+    from PIL.Image import DecompressionBombError
+except ImportError:
+    class DecompressionBombError(Exception):
+        pass
 
 from app.core.config import settings
 from app.identification.exceptions import (
@@ -31,12 +36,15 @@ from app.identification.exceptions import (
     FileTooLargeError,
     ImageDecodingError,
     ImageDimensionError,
-    ImageValidationError,
     UnsupportedFormatError,
 )
 from app.identification.provider import ImagePayload
 
 logger = logging.getLogger("floramw.identification.image")
+
+# Configure Pillow's decompression limit to match our total pixel ceiling
+# This protects against extreme decompression bombs during decoding
+Image.MAX_IMAGE_PIXELS = getattr(settings, "MAX_IMAGE_TOTAL_PIXELS", 4096 * 4096)
 
 # Formats we accept from the upload and can safely process
 _SUPPORTED_FORMATS: frozenset[str] = frozenset({"JPEG", "PNG", "WEBP"})
@@ -103,6 +111,9 @@ def validate_and_prepare(
     try:
         img = Image.open(io.BytesIO(raw_bytes))
         img.verify()  # Catch truncated images early
+    except DecompressionBombError as exc:
+        logger.warning("Image decompression bomb rejected: %s", exc)
+        raise ImageDimensionError(0, 0, settings.MAX_IMAGE_DIMENSION_PX) from exc
     except (UnidentifiedImageError, Exception) as exc:
         logger.debug("Image decode failed: %s", exc)
         raise ImageDecodingError(
@@ -114,6 +125,9 @@ def validate_and_prepare(
     try:
         img = Image.open(io.BytesIO(raw_bytes))
         actual_format: str | None = img.format
+    except DecompressionBombError as exc:
+        logger.warning("Image decompression bomb rejected on reopen: %s", exc)
+        raise ImageDimensionError(0, 0, settings.MAX_IMAGE_DIMENSION_PX) from exc
     except Exception as exc:
         raise ImageDecodingError(
             "The uploaded file could not be opened after verification."
@@ -132,11 +146,22 @@ def validate_and_prepare(
             if not (expected_format == "JPEG" and actual_format == "JPEG"):
                 raise UnsupportedFormatError(actual_format)
 
-    # 6. Dimension guard (checked BEFORE decompression or conversion to prevent memory exhaustion)
+    # 6. Dimension and Total Pixel guard (checked BEFORE decompression or conversion)
     max_dim = settings.MAX_IMAGE_DIMENSION_PX
+    max_pixels = getattr(settings, "MAX_IMAGE_TOTAL_PIXELS", None)
+    if not isinstance(max_pixels, (int, float)):
+        max_pixels = max_dim * max_dim
     width, height = img.size
-    if width > max_dim or height > max_dim:
+    total_pixels = width * height
+    if width > max_dim or height > max_dim or total_pixels > max_pixels:
         raise ImageDimensionError(width, height, max_dim)
+
+    # Seek to first frame for animated / multi-frame formats (WebP, APNG)
+    if getattr(img, "is_animated", False):
+        try:
+            img.seek(0)
+        except Exception:
+            pass
 
     # 7. Apply EXIF orientation correction (before stripping metadata)
     try:
@@ -145,9 +170,10 @@ def validate_and_prepare(
         # Non-fatal: if EXIF orientation cannot be applied, proceed with original
         pass
 
-    # Re-check dimensions in case transposition swapped/adjusted them
+    # Re-check dimensions and total pixel count in case transposition swapped/adjusted them
     width, height = img.size
-    if width > max_dim or height > max_dim:
+    total_pixels = width * height
+    if width > max_dim or height > max_dim or total_pixels > max_pixels:
         raise ImageDimensionError(width, height, max_dim)
 
     # 8. Convert to RGB or RGBA as appropriate (strips palette modes, CMYK, etc.)

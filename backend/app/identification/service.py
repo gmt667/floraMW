@@ -272,9 +272,16 @@ def _reconstruct_response_from_record(
         else None
     )
 
+    candidate_ids = [
+        c.catalogue_plant_id
+        for c in candidates_out
+        if c.catalogue_plant_id is not None
+    ]
+
     return IdentificationResponse(
         outcome=outcome,
         candidates=candidates_out,
+        candidate_ids=candidate_ids,
         top_confidence_level=top_confidence_level,
         photo_guidance=photo_guidance,
         provider=ProviderMetaOut(
@@ -517,6 +524,25 @@ async def run_identification(
     assigned_lease_version: int
 
     if existing is not None:
+        # Check ownership isolation for idempotency keys
+        existing_owner = str(existing.user_id) if existing.user_id else None
+        caller_owner = str(user_id) if user_id else None
+        if existing_owner != caller_owner:
+            logger.warning(
+                "Idempotency conflict: client_request_id='%s' belongs to owner='%s', but caller is '%s'",
+                effective_request_id,
+                existing_owner,
+                caller_owner,
+            )
+            raise HTTPException(
+                status_code=http_status_codes.HTTP_409_CONFLICT,
+                detail=IdentificationErrorResponse(
+                    error_code=IdentificationErrorCode.PROVIDER_ERROR,
+                    message="The provided X-Client-Request-Id was previously used by another account or session.",
+                    retryable=False,
+                ).model_dump(mode="json"),
+            )
+
         # Check payload fingerprint match
         if existing.image_sha256 != image_sha256:
             raise HTTPException(
@@ -879,6 +905,7 @@ async def run_identification(
         return IdentificationResponse(
             outcome=IdentificationOutcome.NO_MATCH,
             candidates=[],
+            candidate_ids=[],
             top_confidence_level=None,
             photo_guidance=_no_match_guidance(),
             provider=ProviderMetaOut(
@@ -977,9 +1004,16 @@ async def run_identification(
             ).model_dump(mode="json"),
         )
 
+    candidate_ids = [
+        c.catalogue_plant_id
+        for c in enriched
+        if c.catalogue_plant_id is not None
+    ]
+
     return IdentificationResponse(
         outcome=outcome,
         candidates=enriched,
+        candidate_ids=candidate_ids,
         top_confidence_level=top_level,
         photo_guidance=photo_guidance,
         provider=ProviderMetaOut(

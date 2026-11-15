@@ -34,8 +34,10 @@ from fastapi import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_optional_current_user
 from app.core.config import settings
 from app.core.database import get_db
+from app.models.user import User
 from app.identification.exceptions import (
     MockProviderForbiddenError,
     ProviderUnavailableError,
@@ -54,6 +56,17 @@ from app.schemas.identification import (
 logger = logging.getLogger("floramw.api.identifications")
 
 router = APIRouter(prefix="/identifications", tags=["Plant Identification"])
+
+
+def sanitize_log_string(val: Optional[str], max_len: int = 128) -> str:
+    """Sanitize strings for safe logging by stripping control characters and CRLF."""
+    if not val:
+        return "<unnamed>"
+    sanitized = "".join(ch for ch in val if ch.isprintable() and ch not in ("\r", "\n", "\t"))
+    sanitized = sanitized.strip()
+    if not sanitized:
+        return "<unnamed>"
+    return sanitized[:max_len]
 
 
 def get_current_provider() -> IdentificationProvider:
@@ -155,8 +168,9 @@ async def identify_plant(
     x_client_request_id: Optional[str] = Header(
         None,
         alias="X-Client-Request-Id",
-        description="Optional client-generated UUID for request tracking and future deduplication.",
+        description="Optional client-generated UUID (UUIDv4 strongly recommended) for request tracking and idempotent deduplication.",
     ),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     provider: IdentificationProvider = Depends(get_current_provider),
     db: AsyncSession = Depends(get_db),
 ) -> IdentificationResponse:
@@ -177,40 +191,80 @@ async def identify_plant(
     - `503`: Provider is unreachable, unconfigured, or mock is forbidden in production.
     - `504`: Provider timed out.
 
+    **Idempotency & Request Tracking**: Clients may supply an optional `X-Client-Request-Id`
+    header (max 64 chars). Unauthenticated clients are strongly recommended to generate
+    cryptographically random UUIDv4 identifiers to ensure isolation against other unauthenticated
+    requests. Authenticated requests are automatically isolated by user identity.
+
     **Botanical Safety**: Identification results, including high-confidence matches,
     are not a substitute for expert botanical assessment. The `safety_disclaimer`
     field in every response must be displayed to the user.
     """
-    client_req_id = None
-    if x_client_request_id is not None:
-        client_req_id = x_client_request_id.strip()
-        if len(client_req_id) > 64:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=IdentificationErrorResponse(
-                    error_code=IdentificationErrorCode.IMAGE_DECODING_FAILED,
-                    message="X-Client-Request-Id exceeds maximum allowed length of 64 characters.",
-                    retryable=False,
-                ).model_dump(mode="json"),
-            )
+    try:
+        client_req_id = None
+        if x_client_request_id is not None:
+            client_req_id = x_client_request_id.strip()
+            if len(client_req_id) > 64:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=IdentificationErrorResponse(
+                        error_code=IdentificationErrorCode.REQUEST_VALIDATION_FAILED,
+                        message="X-Client-Request-Id exceeds maximum allowed length of 64 characters.",
+                        retryable=False,
+                    ).model_dump(mode="json"),
+                )
 
-    # Read upload bytes; size enforcement happens in validate_and_prepare
-    raw_bytes = await image.read()
+        # Read upload bytes in bounded chunks to prevent unbounded memory allocation
+        max_bytes = settings.MAX_UPLOAD_SIZE_BYTES
+        chunk_size = getattr(settings, "UPLOAD_STREAM_CHUNK_SIZE", 64 * 1024)
+        chunks = []
+        total_bytes = 0
 
-    logger.info(
-        "Identification request: filename='%s', content_type='%s', size=%d bytes, request_id='%s'",
-        image.filename or "<unnamed>",
-        image.content_type or "<unknown>",
-        len(raw_bytes),
-        client_req_id or "<none>",
-    )
+        while True:
+            chunk = await image.read(chunk_size)
+            if not chunk:
+                break
+            total_bytes += len(chunk)
+            if total_bytes > max_bytes:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=IdentificationErrorResponse(
+                        error_code=IdentificationErrorCode.IMAGE_TOO_LARGE,
+                        message=(
+                            f"The uploaded file is too large ({total_bytes // (1024 * 1024)} MB). "
+                            f"Maximum allowed size is {max_bytes // (1024 * 1024)} MB."
+                        ),
+                        retryable=False,
+                    ).model_dump(mode="json"),
+                )
+            chunks.append(chunk)
 
-    response = await run_identification(
-        raw_bytes=raw_bytes,
-        declared_content_type=image.content_type,
-        provider=provider,
-        db=db,
-        client_request_id=client_req_id,
-    )
+        raw_bytes = b"".join(chunks)
 
-    return response
+        safe_filename = sanitize_log_string(image.filename)
+        safe_content_type = sanitize_log_string(image.content_type)
+        safe_request_id = sanitize_log_string(client_req_id, max_len=64)
+
+        logger.info(
+            "Identification request: filename='%s', content_type='%s', size=%d bytes, request_id='%s'",
+            safe_filename,
+            safe_content_type,
+            len(raw_bytes),
+            safe_request_id,
+        )
+
+        response = await run_identification(
+            raw_bytes=raw_bytes,
+            declared_content_type=image.content_type,
+            provider=provider,
+            db=db,
+            client_request_id=client_req_id,
+            user_id=str(current_user.id) if current_user else None,
+        )
+
+        return response
+    finally:
+        try:
+            await image.close()
+        except Exception as exc:
+            logger.debug("Error closing upload file: %s", exc)
