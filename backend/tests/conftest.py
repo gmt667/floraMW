@@ -31,6 +31,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.core.database import Base, get_db
+from app.core.rate_limit import set_rate_limiter, RateLimiter, InMemoryRateLimitStorage
 from app.core.readiness import get_expected_migration_head
 from app.core.seed import seed_all
 from app.main import app as _app
@@ -121,6 +122,23 @@ async def setup_test_db():
 
 
 @pytest.fixture(autouse=True)
+async def reset_rate_limiter():
+    """Reset the global rate limiter singleton before each test.
+
+    This prevents rate-limit state from leaking between test cases when tests
+    make repeated requests to the same endpoint using the shared FastAPI app.
+    The global limiter is restored to a fresh in-memory instance with the same
+    configuration as production, ensuring rate-limiting logic is still exercised
+    in tests that explicitly test rate limiting, while preventing unintended 429
+    responses in tests that focus on other behaviour.
+    """
+    fresh_limiter = RateLimiter(storage=InMemoryRateLimitStorage())
+    set_rate_limiter(fresh_limiter)
+    yield
+    set_rate_limiter(None)
+
+
+@pytest.fixture(autouse=True)
 async def cleanup_dynamic_tables():
     """Ensure dynamic identification records are purged after each test for clean isolation.
 
@@ -132,6 +150,7 @@ async def cleanup_dynamic_tables():
         await session.execute(text("DELETE FROM identification_requests"))
         await session.execute(text("DELETE FROM model_versions"))
         await session.execute(text("DELETE FROM dataset_versions"))
+        await session.execute(text("DELETE FROM users WHERE device_token_hash IS NOT NULL"))
         await session.commit()
 
 

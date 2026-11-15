@@ -578,39 +578,40 @@ class TestIdentificationHistoryEndpointsFailClosed:
 
     with HTTP 503 pending Phase 4 authentication integration.
     Zero historical records, candidate data, or user metadata may be disclosed.
+    Unauthenticated requests must be rejected with HTTP 401 Unauthorized.
     """
 
     async def test_list_identifications_returns_503(self, client):
-        """GET /api/v1/identifications returns 503 Service Unavailable."""
+        """GET /api/v1/identifications unauthenticated returns 401 Unauthorized."""
         resp = await client.get("/api/v1/identifications")
-        assert resp.status_code == 503
+        assert resp.status_code == 401
         body = resp.json()
-        assert "temporarily unavailable pending user authentication" in body["detail"]
+        assert body["detail"]["error_code"] == "authentication_required"
         assert "items" not in body
         assert "total" not in body
 
     async def test_list_identifications_with_filters_returns_503(self, client):
-        """GET /api/v1/identifications with query params still returns 503."""
+        """GET /api/v1/identifications with query params unauthenticated returns 401."""
         resp = await client.get("/api/v1/identifications?outcome=candidates&limit=5")
-        assert resp.status_code == 503
+        assert resp.status_code == 401
         body = resp.json()
-        assert "temporarily unavailable pending user authentication" in body["detail"]
+        assert body["detail"]["error_code"] == "authentication_required"
 
     async def test_get_identification_valid_uuid_returns_503(self, client):
-        """GET /api/v1/identifications/{id} returns 503 Service Unavailable."""
+        """GET /api/v1/identifications/{id} unauthenticated returns 401 Unauthorized."""
         fake_id = str(uuid.uuid4())
         resp = await client.get(f"/api/v1/identifications/{fake_id}")
-        assert resp.status_code == 503
+        assert resp.status_code == 401
         body = resp.json()
-        assert "temporarily unavailable pending user authentication" in body["detail"]
+        assert body["detail"]["error_code"] == "authentication_required"
         assert "candidates" not in body
 
     async def test_get_identification_invalid_uuid_returns_503(self, client):
-        """Non-UUID path parameter also fails closed with 503."""
+        """Non-UUID path parameter unauthenticated also fails closed with 401."""
         resp = await client.get("/api/v1/identifications/not-a-uuid")
-        assert resp.status_code == 503
+        assert resp.status_code == 401
         body = resp.json()
-        assert "temporarily unavailable pending user authentication" in body["detail"]
+        assert body["detail"]["error_code"] == "authentication_required"
 
 
 class TestIdentificationHistoryQueryService:

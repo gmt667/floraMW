@@ -503,15 +503,16 @@ class TestPhase311Regressions:
 
     async def test_history_list_fails_closed_503(self, client: AsyncClient):
         resp = await client.get("/api/v1/identifications")
-        assert resp.status_code == 503
-        assert "temporarily unavailable" in resp.json()["detail"]
+        assert resp.status_code == 401
+        assert resp.json()["detail"]["error_code"] == "authentication_required"
 
     async def test_history_detail_fails_closed_503(self, client: AsyncClient):
         resp = await client.get(f"/api/v1/identifications/{uuid.uuid4()}")
-        assert resp.status_code == 503
-        assert "temporarily unavailable" in resp.json()["detail"]
+        assert resp.status_code == 401
+        assert resp.json()["detail"]["error_code"] == "authentication_required"
 
     def test_mock_provider_rejected_in_production(self):
         with patch.object(settings, "ENVIRONMENT", "production"):
             with pytest.raises(MockProviderForbiddenError):
                 InternalModelProvider(mode="mock")
+

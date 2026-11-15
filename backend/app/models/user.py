@@ -45,6 +45,13 @@ class User(Base):
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=True, index=True)
     password_hash = Column(String(255), nullable=True)
+    device_token_hash = Column(
+        String(64),
+        unique=True,
+        nullable=True,
+        index=True,
+        doc="SHA-256 hash of device authentication token for anonymous identity.",
+    )
     role = Column(String(30), nullable=False, default="guest")
     is_anonymous = Column(Boolean, nullable=False, default=True)
     created_at = Column(

@@ -105,36 +105,36 @@ class FailingMockProvider(IdentificationProvider):
 # ---------------------------------------------------------------------------
 
 class TestPhase31SecurityHistoryLockdown:
-    """Public history endpoints fail closed with HTTP 503 and zero disclosures."""
+    """Public history endpoints fail closed with HTTP 401 and zero disclosures."""
 
     async def test_history_list_returns_503(self, client: AsyncClient):
         resp = await client.get("/api/v1/identifications")
-        assert resp.status_code == 503
+        assert resp.status_code == 401
         data = resp.json()
-        assert "temporarily unavailable pending user authentication" in data["detail"]
+        assert data["detail"]["error_code"] == "authentication_required"
         assert "items" not in data
         assert "total" not in data
 
     async def test_history_list_filters_ignored_still_503(self, client: AsyncClient):
         resp = await client.get("/api/v1/identifications?page=2&limit=50&outcome=candidates")
-        assert resp.status_code == 503
+        assert resp.status_code == 401
         data = resp.json()
-        assert "temporarily unavailable" in data["detail"]
+        assert data["detail"]["error_code"] == "authentication_required"
 
     async def test_history_detail_returns_503(self, client: AsyncClient):
         test_id = str(uuid.uuid4())
         resp = await client.get(f"/api/v1/identifications/{test_id}")
-        assert resp.status_code == 503
+        assert resp.status_code == 401
         data = resp.json()
-        assert "temporarily unavailable pending user authentication" in data["detail"]
+        assert data["detail"]["error_code"] == "authentication_required"
         assert "candidates" not in data
         assert "provider" not in data
 
     async def test_history_detail_malformed_id_returns_503(self, client: AsyncClient):
         resp = await client.get("/api/v1/identifications/malformed-id")
-        assert resp.status_code == 503
+        assert resp.status_code == 401
         data = resp.json()
-        assert "temporarily unavailable" in data["detail"]
+        assert data["detail"]["error_code"] == "authentication_required"
 
 
 # ---------------------------------------------------------------------------

@@ -91,6 +91,7 @@ SCHEMA_COLUMN_SPEC: Dict[str, Dict[str, Set[str]]] = {
         "required": {
             "id",
             "password_hash",
+            "device_token_hash",
             "role",
             "is_anonymous",
         },

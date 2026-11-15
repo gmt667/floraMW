@@ -19,8 +19,8 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 FLORAMW_DB_PATH = BACKEND_DIR / "floramw.db"
 
 
-def _create_base_schema(conn, revision: str = "0005_add_lease_assigned_at_to_identification_requests"):
-    """Helper to construct a valid schema matching revision 0005 on an isolated connection."""
+def _create_base_schema(conn, revision: str = "0006_add_device_token_hash_to_users"):
+    """Helper to construct a valid schema matching revision 0006 on an isolated connection."""
     conn.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY)"))
     conn.execute(text(f"INSERT INTO alembic_version (version_num) VALUES ('{revision}')"))
 
@@ -57,7 +57,8 @@ def _create_base_schema(conn, revision: str = "0005_add_lease_assigned_at_to_ide
     conn.execute(text(
         "CREATE TABLE users ("
         "id CHAR(36) PRIMARY KEY, email VARCHAR(255) UNIQUE, password_hash VARCHAR(255), "
-        "role VARCHAR(30) NOT NULL, is_anonymous BOOLEAN NOT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL)"
+        "device_token_hash VARCHAR(64) UNIQUE, role VARCHAR(30) NOT NULL, is_anonymous BOOLEAN NOT NULL, "
+        "created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL)"
     ))
     conn.execute(text(
         "CREATE TABLE identification_requests ("
@@ -95,16 +96,16 @@ def _create_base_schema(conn, revision: str = "0005_add_lease_assigned_at_to_ide
 def test_get_expected_migration_head():
     """Verify that get_expected_migration_head returns the current Alembic head revision."""
     head = get_expected_migration_head()
-    assert head == "0005_add_lease_assigned_at_to_identification_requests"
+    assert head == "0006_add_device_token_hash_to_users"
 
 
 def test_readiness_valid_schema_and_head_accepted():
     """A database with the full expected schema and matching Alembic head passes verification."""
     engine = create_engine("sqlite:///:memory:")
     with engine.connect() as conn:
-        _create_base_schema(conn, "0005_add_lease_assigned_at_to_identification_requests")
+        _create_base_schema(conn, "0006_add_device_token_hash_to_users")
         # Should execute cleanly without raising any exception
-        verify_database_readiness(conn, expected_head="0005_add_lease_assigned_at_to_identification_requests")
+        verify_database_readiness(conn, expected_head="0006_add_device_token_hash_to_users")
 
 
 def test_readiness_missing_alembic_version_rejected():

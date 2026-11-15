@@ -1,18 +1,16 @@
 """Identification history endpoints and query service.
 
-GET /api/v1/identifications        — paginated identification history
-GET /api/v1/identifications/{id}   — full identification detail
+GET /api/v1/identifications        — paginated identification history (authenticated)
+GET /api/v1/identifications/{id}   — full identification detail (authenticated)
 
-Security Notice (Phase 3.1 Hardening):
-  Public access to both history endpoints is temporarily disabled (HTTP 503)
-  pending the introduction of authenticated ownership filtering in Phase 4.
-  All records and candidates remain securely persisted in the database.
-  No identification records, candidate details, or user identifiers are disclosed
-  to unauthenticated callers.
+Both endpoints require a valid ``Authorization: Bearer <token>`` header issued by
+``POST /api/v1/auth/anonymous``.  Unauthenticated callers receive HTTP 401.
 
-  The underlying query and pagination logic has been optimized to eliminate N+1
-  queries via correlated subqueries, ready for immediate re-activation once
-  Phase 4 authentication dependencies are attached.
+Security:
+- Each caller sees only their own records; cross-user access returns HTTP 404
+  (anti-IDOR — the existence of another user's record is never disclosed).
+- Pagination uses a correlated scalar subquery to count candidates, eliminating
+  N+1 query overhead on both SQLite and PostgreSQL.
 """
 
 from __future__ import annotations
@@ -28,9 +26,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.identification.service import confidence_level
 from app.models.identification import IdentificationCandidate, IdentificationRequest
+from app.models.user import User
 from app.schemas.history import (
     IdentificationCandidateHistoryOut,
     IdentificationHistoryDetailOut,
@@ -46,13 +46,6 @@ from app.schemas.identification import (
 logger = logging.getLogger("floramw.api.identification_history")
 
 router = APIRouter(prefix="/identifications", tags=["Identification History"])
-
-_AUTH_PENDING_MESSAGE = (
-    "Identification history is temporarily unavailable pending "
-    "user authentication integration in Phase 4. "
-    "Records are securely preserved and cannot be accessed anonymously."
-)
-
 
 # ---------------------------------------------------------------------------
 # Internal Query Service Functions (Optimized with single query, no N+1)
@@ -262,22 +255,27 @@ async def fetch_identification_detail(
 
 
 # ---------------------------------------------------------------------------
-# Public HTTP Endpoints (Fail-Closed pending Phase 4 authentication)
+# Public HTTP Endpoints (Protected by User Authentication)
 # ---------------------------------------------------------------------------
 
 
 @router.get(
     "",
-    summary="List identification history (Temporarily Disabled)",
+    response_model=IdentificationHistoryListResponse,
+    summary="List identification history",
     description=(
-        "Identification history listing is temporarily disabled pending user "
-        "authentication integration in Phase 4. Returns HTTP 503. "
-        "No historical identification records are exposed to unauthenticated callers."
+        "Retrieve paginated identification history owned exclusively by the authenticated user. "
+        "Requires standard 'Authorization: Bearer <token>' header. "
+        "Records belonging to other users or legacy unowned records are strictly filtered out."
     ),
     responses={
-        status.HTTP_503_SERVICE_UNAVAILABLE: {
-            "description": "Identification history is temporarily unavailable pending authentication."
-        }
+        status.HTTP_200_OK: {
+            "model": IdentificationHistoryListResponse,
+            "description": "Paginated identification history for the authenticated caller.",
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Authentication required. Provide a valid Bearer token.",
+        },
     },
 )
 async def list_identifications(
@@ -288,35 +286,53 @@ async def list_identifications(
     created_before: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> None:
-    """Fail-closed: block unauthenticated access to history listing."""
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail=_AUTH_PENDING_MESSAGE,
+) -> IdentificationHistoryListResponse:
+    """Retrieve user-scoped paginated identification history."""
+    return await fetch_identification_history_list(
+        db=db,
+        outcome=outcome,
+        provider_id=provider_id,
+        model_version=model_version,
+        created_after=created_after,
+        created_before=created_before,
+        page=page,
+        limit=limit,
+        user_id=str(current_user.id),
     )
 
 
 @router.get(
     "/{identification_id}",
-    summary="Get identification detail (Temporarily Disabled)",
+    response_model=IdentificationHistoryDetailOut,
+    summary="Get identification detail",
     description=(
-        "Identification detail retrieval is temporarily disabled pending user "
-        "authentication integration in Phase 4. Returns HTTP 503. "
-        "No historical identification records are exposed to unauthenticated callers."
+        "Retrieve complete detail and candidates for an identification record owned by the caller. "
+        "Requires standard 'Authorization: Bearer <token>' header. "
+        "Returns HTTP 404 if the record does not exist or belongs to another user (anti-IDOR protection)."
     ),
     responses={
-        status.HTTP_503_SERVICE_UNAVAILABLE: {
-            "description": "Identification detail is temporarily unavailable pending authentication."
-        }
+        status.HTTP_200_OK: {
+            "model": IdentificationHistoryDetailOut,
+            "description": "Full identification detail with candidates.",
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Authentication required.",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Record not found or not owned by caller.",
+        },
     },
 )
 async def get_identification(
     identification_id: str,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> None:
-    """Fail-closed: block unauthenticated access to record detail."""
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail=_AUTH_PENDING_MESSAGE,
+) -> IdentificationHistoryDetailOut:
+    """Retrieve full identification detail conditioned on user ownership."""
+    return await fetch_identification_detail(
+        identification_id=identification_id,
+        db=db,
+        user_id=str(current_user.id),
     )
