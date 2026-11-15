@@ -2,7 +2,7 @@
 
 **Version:** 1.0.0
 **Issued:** 2026-11-11
-**Issued By:** Backend Engineering (Principal Backend Architect)
+**Issued By:** Backend Engineering (chrispine moyo)
 **For:** Christopher C. N'goma, Prescott Magaleta, Moses Munkhondya
 
 ---
