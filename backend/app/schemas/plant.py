@@ -35,14 +35,14 @@ class PlantSectionOut(BaseModel):
 class PlantSummaryOut(BaseModel):
     """Plant list item — matches frontend Plant model top-level fields."""
 
-    id: str
-    name: str
-    scientific: str
-    family: str
-    category: str
-    symbol: Optional[str] = None
-    description: str
-    photo_asset: str
+    id: str = Field(description="Unique botanical slug identifier (e.g. 'hibiscus')")
+    name: str = Field(description="Common English vernacular name")
+    scientific: str = Field(description="Botanical binominal scientific name")
+    family: str = Field(description="Taxonomic plant family")
+    category: str = Field(description="Broad category (e.g. 'Garden flowers', 'Research interest')")
+    symbol: Optional[str] = Field(None, description="Visual emoji or icon symbol")
+    description: str = Field(description="Short botanical overview description")
+    photo_asset: str = Field(description="Relative Flutter asset path for photography")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -71,9 +71,9 @@ class PlantDetailOut(PlantSummaryOut):
 class PlantListResponse(BaseModel):
     """Paginated plant catalog response."""
 
-    total: int
-    page: int
-    limit: int
-    total_pages: int
-    has_more: bool
-    items: List[PlantSummaryOut]
+    total: int = Field(description="Total number of plants matching query filters")
+    page: int = Field(description="Current 1-based page number")
+    limit: int = Field(description="Maximum number of items per page")
+    total_pages: int = Field(description="Total number of available pages")
+    has_more: bool = Field(description="True if additional pages are available")
+    items: List[PlantSummaryOut] = Field(description="List of plant summary items for current page")

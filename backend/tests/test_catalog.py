@@ -299,3 +299,112 @@ async def test_list_plants_invalid_sort_returns_422(client: AsyncClient):
     """Unsupported sort value is rejected with HTTP 422."""
     resp = await client.get("/api/v1/plants", params={"sort": "alphabetical"})
     assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Family filtering & Query parameter validation tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_plants_filter_by_family(client: AsyncClient):
+    """Filter by family Apocynaceae returns periwinkle and frangipani."""
+    resp = await client.get("/api/v1/plants", params={"family": "Apocynaceae"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 2
+    ids = {p["id"] for p in data["items"]}
+    assert ids == {"periwinkle", "frangipani"}
+    assert all(p["family"] == "Apocynaceae" for p in data["items"])
+
+
+@pytest.mark.asyncio
+async def test_list_plants_filter_by_family_case_insensitive(client: AsyncClient):
+    """Family filter is case-insensitive."""
+    resp = await client.get("/api/v1/plants", params={"family": "apocynaceae"})
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 2
+
+
+@pytest.mark.asyncio
+async def test_list_plants_filter_combined_category_and_family(client: AsyncClient):
+    """Combining category and family filters narrows results correctly."""
+    resp = await client.get(
+        "/api/v1/plants",
+        params={"category": "Garden flowers", "family": "Malvaceae"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["items"][0]["id"] == "hibiscus"
+
+
+@pytest.mark.asyncio
+async def test_list_plants_filter_family_no_match(client: AsyncClient):
+    """Filtering by an unknown family returns total=0 and empty items."""
+    resp = await client.get("/api/v1/plants", params={"family": "Orchidaceae"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 0
+    assert data["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_list_plants_query_param_validation_max_length(client: AsyncClient):
+    """Search query exceeding 100 characters returns 422."""
+    long_q = "a" * 101
+    resp = await client.get("/api/v1/plants", params={"q": long_q})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_list_plants_category_max_length(client: AsyncClient):
+    """Category parameter exceeding 50 characters returns 422."""
+    long_cat = "c" * 51
+    resp = await client.get("/api/v1/plants", params={"category": long_cat})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_get_plant_oversized_slug_returns_404(client: AsyncClient):
+    """Oversized slug returns 404."""
+    long_id = "x" * 70
+    resp = await client.get(f"/api/v1/plants/{long_id}")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_catalogue_does_not_leak_user_information(client: AsyncClient):
+    """Neither plant listing nor plant detail ever exposes user IDs or auth details."""
+    list_resp = await client.get("/api/v1/plants")
+    assert list_resp.status_code == 200
+    list_text = list_resp.text.lower()
+    for forbidden in ("user_id", "device_token", "password", "email", "verified_by"):
+        assert forbidden not in list_text, f"Found forbidden field '{forbidden}' in plant listing"
+
+    detail_resp = await client.get("/api/v1/plants/hibiscus")
+    assert detail_resp.status_code == 200
+    detail_text = detail_resp.text.lower()
+    for forbidden in ("user_id", "device_token", "password", "email", "verified_by"):
+        assert forbidden not in detail_text, f"Found forbidden field '{forbidden}' in plant detail"
+
+
+@pytest.mark.asyncio
+async def test_catalogue_data_integrity_all_seeded_records(client: AsyncClient):
+    """Validate data integrity for all 4 reference plants."""
+    for p_info in FRONTEND_PLANTS:
+        resp = await client.get(f"/api/v1/plants/{p_info['id']}")
+        assert resp.status_code == 200
+        p = resp.json()
+        assert p["id"] == p_info["id"]
+        assert p["name"] == p_info["name"]
+        assert p["scientific"] == p_info["scientific"]
+        assert p["family"] == p_info["family"]
+        assert p["category"] == p_info["category"]
+        assert len(p["description"]) > 20
+        assert p["photo_asset"].startswith("assets/plants/")
+        assert len(p["sections"]) >= 9
+        assert len(p["sources"]) >= 2
+        # Check that PMRA source exists
+        assert any(s["is_pmra_reference"] for s in p["sources"])
+

@@ -31,10 +31,19 @@ router = APIRouter(prefix="/plants", tags=["Botanical Catalog"])
 )
 async def list_plants(
     q: Optional[str] = Query(
-        None, description="Search common name, scientific name or family"
+        None,
+        description="Search common name, scientific name or family",
+        max_length=100,
     ),
     category: Optional[str] = Query(
-        None, description="Filter by category (e.g. 'Garden flowers')"
+        None,
+        description="Filter by category (e.g. 'Garden flowers')",
+        max_length=50,
+    ),
+    family: Optional[str] = Query(
+        None,
+        description="Filter by botanical family (e.g. 'Apocynaceae')",
+        max_length=100,
     ),
     sort: Literal["name_asc", "name_desc"] = Query(
         "name_asc",
@@ -50,7 +59,7 @@ async def list_plants(
     """Retrieve paginated plant profiles from the reference catalog.
 
     Supports full-text search across common name, scientific name and family.
-    Category filtering maps to the frontend plant.category field.
+    Category and family filtering map to botanical classification fields.
     """
     stmt = select(Plant).where(Plant.is_published.is_(True))
 
@@ -66,6 +75,9 @@ async def list_plants(
 
     if category and category.strip() and category.strip().lower() != "all plants":
         stmt = stmt.where(Plant.category == category.strip())
+
+    if family and family.strip():
+        stmt = stmt.where(func.lower(Plant.family) == family.strip().lower())
 
     # Count before pagination
     count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -124,9 +136,16 @@ async def get_plant(plant_id: str, db: AsyncSession = Depends(get_db)):
     - sources: List<PlantSource> with title and url (matches lib/models.dart)
     - verified_districts: districts with confirmed occurrence
     """
+    clean_id = (plant_id or "").strip()
+    if not clean_id or len(clean_id) > 64:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plant '{plant_id}' not found.",
+        )
+
     stmt = (
         select(Plant)
-        .where(Plant.id == plant_id, Plant.is_published.is_(True))
+        .where(Plant.id == clean_id, Plant.is_published.is_(True))
         .options(
             selectinload(Plant.sections),
             selectinload(Plant.sources),
