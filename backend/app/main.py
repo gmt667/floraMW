@@ -10,11 +10,13 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text, inspect
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import async_engine, Base, get_db, AsyncSessionLocal
+from app.core.database import async_engine, get_db, AsyncSessionLocal
+from app.core.middleware import SecurityHeadersMiddleware, UploadSizeLimitMiddleware
+from app.core.rate_limit import RateLimitMiddleware
 from app.core.readiness import verify_database_readiness
 from app.core.seed import seed_all
 from app.api.v1.api import api_router
@@ -60,6 +62,22 @@ app.add_middleware(
     allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Upload request size limiter (enforces ceiling on upload endpoints before memory buffering)
+app.add_middleware(
+    UploadSizeLimitMiddleware,
+    max_upload_bytes=settings.MAX_UPLOAD_SIZE_BYTES,
+)
+
+# API rate limiting (identification and catalogue endpoints)
+app.add_middleware(RateLimitMiddleware)
+
+# Defensive security headers (applied to all responses; HTTPS-aware HSTS)
+app.add_middleware(
+    SecurityHeadersMiddleware,
+    enable_hsts=settings.ENABLE_HSTS,
+    hsts_max_age=settings.HSTS_MAX_AGE_SECONDS,
 )
 
 # Mount API v1 router

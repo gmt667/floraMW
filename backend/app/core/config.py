@@ -34,6 +34,42 @@ class Settings(BaseSettings):
     # Image upload limits (identification engine)
     MAX_UPLOAD_SIZE_BYTES: int = 10 * 1024 * 1024  # 10 MB
     MAX_IMAGE_DIMENSION_PX: int = 4096  # Maximum width or height in pixels
+    MAX_IMAGE_TOTAL_PIXELS: int = 4096 * 4096  # 16,777,216 pixels (16 MP max total area)
+    UPLOAD_STREAM_CHUNK_SIZE: int = 64 * 1024  # 64 KB reading chunks
+
+    # Transport Security Headers
+    ENABLE_HSTS: bool = False  # Enabled in production over HTTPS; default False for local HTTP
+    HSTS_MAX_AGE_SECONDS: int = 31536000  # 1 year
+
+    # Rate Limiting Configuration (Phase 4.2.2)
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_STORAGE: str = "memory"  # "memory" or "redis"
+    RATE_LIMIT_REDIS_URL: str = "redis://localhost:6379/0"
+    RATE_LIMIT_FAIL_OPEN: bool = True  # If storage backend fails, allow request with warning log
+
+    # Rate limits: identification (POST /api/v1/identifications)
+    RATE_LIMIT_IDENTIFICATION_PER_MINUTE: int = 5
+    RATE_LIMIT_IDENTIFICATION_BURST: int = 15
+
+    # Rate limits: catalogue (GET /api/v1/plants*, GET /api/v1/districts*)
+    RATE_LIMIT_CATALOGUE_PER_MINUTE: int = 60
+    RATE_LIMIT_CATALOGUE_BURST: int = 120
+
+    # Rate limits: authentication (POST /api/v1/auth/anonymous)
+    RATE_LIMIT_AUTH_PER_MINUTE: int = 10
+    RATE_LIMIT_AUTH_BURST: int = 20
+
+    # Reverse proxy trust for client IP resolution
+    RATE_LIMIT_TRUST_PROXY_HEADERS: bool = False
+    RATE_LIMIT_TRUSTED_PROXIES: List[str] = ["127.0.0.1", "::1"]
+
+    # Shared-IP (Malawi CGNAT) multiplier for IP aggregate ceiling
+    RATE_LIMIT_SHARED_IP_BURST_MULTIPLIER: int = 5
+
+    # Global rate limit emergency brake (optional overall ceiling)
+    RATE_LIMIT_GLOBAL_ENABLED: bool = False
+    RATE_LIMIT_GLOBAL_PER_MINUTE: int = 1000
+    RATE_LIMIT_GLOBAL_BURST: int = 2000
 
     # Processing lease timeout for idempotency reservation recovery (seconds)
     IDENTIFICATION_PROCESSING_LEASE_SECONDS: int = 60
