@@ -1,8 +1,9 @@
 """Botanical feedback and correction report endpoints.
 
 Allows submitting feedback, corrections, or botanical issues (Flutter ReportScreen):
-- POST /api/v1/flowers/reports — Submit a botanical report or correction
-- GET /api/v1/flowers/reports  — List submitted reports
+- POST /api/v1/flowers/reports       — Submit a botanical report or correction
+- GET  /api/v1/flowers/reports       — List submitted reports (user-isolated)
+- GET  /api/v1/flowers/reports/{id}  — Fetch a single report (owner-isolated)
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_optional_current_user
@@ -44,6 +46,7 @@ def _report_to_out(rep: FlowerReport) -> FlowerReportOut:
         topic=rep.topic,
         details=rep.details,
         source=rep.source,
+        source_reference=rep.source,
         status=rep.status,
         created_at=iso_date,
         createdAt=iso_date,
@@ -67,6 +70,15 @@ async def _create_report_handler(
 
     report_id = payload.id.strip() if payload.id and payload.id.strip() else str(uuid.uuid4())
 
+    # Check for duplicate report ID
+    existing_stmt = select(FlowerReport).where(FlowerReport.id == report_id)
+    existing = (await db.execute(existing_stmt)).scalar_one_or_none()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Report with ID '{report_id}' already exists.",
+        )
+
     report = FlowerReport(
         id=report_id,
         flower_id=payload.flower_id,
@@ -78,8 +90,15 @@ async def _create_report_handler(
         created_at=payload.created_at or datetime.now(timezone.utc),
     )
     db.add(report)
-    await db.commit()
-    await db.refresh(report)
+    try:
+        await db.commit()
+        await db.refresh(report)
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Report with ID '{report_id}' already exists or conflicts with existing data.",
+        ) from exc
 
     logger.info("Submitted botanical report '%s' for flower '%s'", report.id, report.flower_id)
     return _report_to_out(report)
@@ -96,6 +115,8 @@ async def _list_reports_handler(
 
     if user:
         stmt = stmt.where(FlowerReport.user_id == user.id)
+    else:
+        stmt = stmt.where(FlowerReport.user_id.is_(None))
 
     if flower_id and flower_id.strip():
         stmt = stmt.where(FlowerReport.flower_id == flower_id.strip())
@@ -110,6 +131,29 @@ async def _list_reports_handler(
     items = [_report_to_out(rep) for rep in results]
 
     return FlowerReportListResponse(total=total, items=items)
+
+
+async def _get_report_handler(
+    report_id: str,
+    db: AsyncSession,
+    user: Optional[User],
+) -> FlowerReportOut:
+    stmt = select(FlowerReport).where(FlowerReport.id == report_id.strip())
+    report = (await db.execute(stmt)).scalar_one_or_none()
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report '{report_id}' was not found.",
+        )
+
+    # Anti-IDOR: if report has an owner, only that owner can retrieve it
+    if report.user_id is not None and (user is None or report.user_id != user.id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report '{report_id}' was not found.",
+        )
+
+    return _report_to_out(report)
 
 
 # ---------------------------------------------------------------------------
@@ -155,5 +199,24 @@ async def list_reports(
     db: AsyncSession = Depends(get_db),
     user: Optional[User] = Depends(get_optional_current_user),
 ):
-    """Retrieve submitted reports."""
+    """Retrieve submitted reports for the authenticated caller or unowned session."""
     return await _list_reports_handler(flower_id, page, limit, db, user)
+
+
+@router.get(
+    "/flowers/reports/{report_id}",
+    response_model=FlowerReportOut,
+    summary="Get single botanical correction report",
+)
+@router.get(
+    "/reports/{report_id}",
+    response_model=FlowerReportOut,
+    summary="Get single botanical correction report (Alias)",
+)
+async def get_report(
+    report_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_optional_current_user),
+):
+    """Retrieve details of a single report by ID."""
+    return await _get_report_handler(report_id, db, user)

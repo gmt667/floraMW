@@ -256,3 +256,11 @@ class TestLoggingAndValidationCorrections:
         assert detail["error_code"] == IdentificationErrorCode.REQUEST_VALIDATION_FAILED.value
         assert "64 characters" in detail["message"]
         assert detail["retryable"] is False
+
+    def test_cors_wildcard_with_credentials_rejected(self):
+        """Settings rejects CORS_ALLOW_CREDENTIALS=True with wildcard origin."""
+        from app.core.config import Settings
+        with pytest.raises(ValueError) as exc_info:
+            Settings(CORS_ORIGINS=["*"], CORS_ALLOW_CREDENTIALS=True)
+        assert "forbidden by CORS specification" in str(exc_info.value)
+

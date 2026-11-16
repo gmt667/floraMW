@@ -1067,3 +1067,31 @@ class TestErrorCodeSchema:
         from app.schemas.identification import IdentificationErrorCode
 
         assert IdentificationErrorCode.RATE_LIMIT_EXCEEDED.value == "rate_limit_exceeded"
+
+    @pytest.mark.asyncio
+    async def test_flowers_canonical_path_is_rate_limited(self):
+        """GET /api/v1/flowers is recognized under the catalogue category in middleware."""
+        from app.core.rate_limit.middleware import RateLimitMiddleware
+        from unittest.mock import AsyncMock
+
+        mock_limiter = AsyncMock()
+        mock_limiter.check.return_value = AsyncMock(
+            allowed=True,
+            limit=60,
+            remaining=59,
+            reset_epoch=int(time.time()) + 60,
+        )
+
+        app_mock = AsyncMock()
+        mw = RateLimitMiddleware(app=app_mock, limiter=mock_limiter)
+
+        scope = _make_scope(path="/api/v1/flowers", method="GET", client_ip="192.168.1.50")
+        send = AsyncMock()
+        receive = AsyncMock()
+
+        await mw(scope, receive, send)
+
+        mock_limiter.check.assert_called_once()
+        call_kwargs = mock_limiter.check.call_args.kwargs
+        assert call_kwargs["category"] == "catalogue"
+

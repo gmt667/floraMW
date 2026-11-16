@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import List
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
@@ -111,6 +112,14 @@ class Settings(BaseSettings):
     INTERNAL_MODEL_SERVICE_URL: str = ""
     INTERNAL_MODEL_TIMEOUT_SECONDS: float = 5.0
     INTERNAL_MODEL_LABELS_PATH: str = ""
+
+    @model_validator(mode="after")
+    def validate_cors_config(self) -> "Settings":
+        if "*" in self.CORS_ORIGINS and self.CORS_ALLOW_CREDENTIALS:
+            raise ValueError(
+                "CORS_ALLOW_CREDENTIALS cannot be True when CORS_ORIGINS contains '*' (forbidden by CORS specification)."
+            )
+        return self
 
     model_config = SettingsConfigDict(
         env_file=".env",

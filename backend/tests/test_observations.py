@@ -8,6 +8,11 @@ Covers:
 5. Deleting observation (DELETE /api/v1/flowers/observations/{id})
 6. Anonymous identity association and anti-IDOR isolation
 7. 404 on nonexistent flower reference
+8. Duplicate observation ID rejection (409)
+9. District validation against Malawi's 28 administrative districts (400)
+10. District case normalization (e.g. 'zomba' -> 'Zomba')
+11. CamelCase payload support matching Flutter Discovery model
+12. Anti-IDOR for unauthenticated requests against owned observations
 """
 
 import pytest
@@ -142,3 +147,120 @@ async def test_observation_user_ownership_isolation(client: AsyncClient):
         headers=headers_b,
     )
     assert res_b_fetch.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_observation_duplicate_id_returns_409(client: AsyncClient):
+    """Providing an already existing observation ID returns 409 Conflict."""
+    custom_id = "test-dup-obs-microsecond-id-998877"
+    payload = {
+        "id": custom_id,
+        "flower_id": "hibiscus",
+        "note": "First submission with client ID.",
+    }
+    res1 = await client.post("/api/v1/flowers/observations", json=payload)
+    assert res1.status_code == 201
+
+    res2 = await client.post("/api/v1/flowers/observations", json=payload)
+    assert res2.status_code == 409
+    assert "already exists" in res2.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_create_observation_invalid_district_returns_400(client: AsyncClient):
+    """Providing a district not in Malawi's 28 districts returns 400 Bad Request."""
+    payload = {
+        "flower_id": "hibiscus",
+        "district": "London",
+        "note": "Observation with invalid district.",
+    }
+    response = await client.post("/api/v1/flowers/observations", json=payload)
+    assert response.status_code == 400
+    assert "not one of Malawi's 28 recognized administrative districts" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_observation_district_normalization(client: AsyncClient):
+    """District name in lowercase is normalized to canonical title case."""
+    payload = {
+        "flower_id": "marigold",
+        "district": "mzimba",
+        "note": "Mzimba district test",
+    }
+    response = await client.post("/api/v1/flowers/observations", json=payload)
+    assert response.status_code == 201
+    assert response.json()["district"] == "Mzimba"
+
+
+@pytest.mark.asyncio
+async def test_patch_observation_invalid_district_returns_400(client: AsyncClient):
+    """Updating an observation with an invalid district returns 400 Bad Request."""
+    create_resp = await client.post(
+        "/api/v1/flowers/observations",
+        json={"flower_id": "frangipani", "district": "Karonga"},
+    )
+    assert create_resp.status_code == 201
+    obs_id = create_resp.json()["id"]
+
+    patch_resp = await client.patch(
+        f"/api/v1/flowers/observations/{obs_id}",
+        json={"district": "NotADistrict"},
+    )
+    assert patch_resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_observation_flutter_camelcase_payload(client: AsyncClient):
+    """Observation created using Flutter Discovery.toJson format (camelCase keys) succeeds."""
+    payload = {
+        "plantId": "frangipani",
+        "district": "Thyolo",
+        "note": "Sweet scented flowers near tea estate.",
+        "photo": "/data/user/0/mw.flora/files/floramw_556677.jpg",
+        "createdAt": "2026-11-16T12:00:00Z",
+        "isDemo": True,
+    }
+    res = await client.post("/api/v1/flowers/observations", json=payload)
+    assert res.status_code == 201
+    data = res.json()
+    assert data["flower_id"] == "frangipani"
+    assert data["plant_id"] == "frangipani"
+    assert data["district"] == "Thyolo"
+    assert data["is_demo"] is True
+    assert data["photo"] == "/data/user/0/mw.flora/files/floramw_556677.jpg"
+
+
+@pytest.mark.asyncio
+async def test_observation_unauthenticated_anti_idor_isolation(client: AsyncClient):
+    """Unauthenticated caller cannot fetch, update, or delete an authenticated user's observation."""
+    auth = await client.post("/api/v1/auth/anonymous")
+    token = auth.json()["device_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    create_resp = await client.post(
+        "/api/v1/flowers/observations",
+        json={"flower_id": "hibiscus", "note": "Secret observation", "district": "Rumphi"},
+        headers=headers,
+    )
+    assert create_resp.status_code == 201
+    obs_id = create_resp.json()["id"]
+
+    # Unauthenticated fetch returns 404 (anti-IDOR)
+    anon_get = await client.get(f"/api/v1/flowers/observations/{obs_id}")
+    assert anon_get.status_code == 404
+
+    # Unauthenticated patch returns 404
+    anon_patch = await client.patch(
+        f"/api/v1/flowers/observations/{obs_id}",
+        json={"note": "Hacked note"},
+    )
+    assert anon_patch.status_code == 404
+
+    # Unauthenticated delete returns 404
+    anon_del = await client.delete(f"/api/v1/flowers/observations/{obs_id}")
+    assert anon_del.status_code == 404
+
+    # Owner can still fetch it
+    owner_get = await client.get(f"/api/v1/flowers/observations/{obs_id}", headers=headers)
+    assert owner_get.status_code == 200
+    assert owner_get.json()["note"] == "Secret observation"

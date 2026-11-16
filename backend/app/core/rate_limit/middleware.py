@@ -33,6 +33,7 @@ class RateLimitMiddleware:
         ident_path: str = f"{settings.API_V1_STR}/identifications",
         auth_path: str = f"{settings.API_V1_STR}/auth",
         catalogue_paths: Sequence[str] = (
+            f"{settings.API_V1_STR}/flowers",
             f"{settings.API_V1_STR}/plants",
             f"{settings.API_V1_STR}/districts",
         ),

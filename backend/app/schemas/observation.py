@@ -7,6 +7,7 @@ Fully compatible with Flutter lib/models.dart Discovery:
 - photo / photo_path: String?
 - district: String?
 - note: String
+- isDemo / is_demo: bool
 """
 
 from __future__ import annotations
@@ -19,40 +20,54 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class FlowerObservationCreate(BaseModel):
     """Schema for creating a Field Journal observation."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     id: Optional[str] = Field(
         default=None,
+        max_length=64,
         description="Optional client-generated ID (e.g. timestamp/microseconds matching Flutter)",
     )
     flower_id: Optional[str] = Field(
         default=None,
+        alias="flowerId",
+        max_length=64,
         description="Botanical flower slug (e.g. 'hibiscus')",
     )
     plant_id: Optional[str] = Field(
         default=None,
+        alias="plantId",
+        max_length=64,
         description="Legacy alias for flower_id matching Flutter Discovery.plantId",
     )
     created_at: Optional[datetime] = Field(
         default=None,
+        alias="createdAt",
         description="Observation timestamp (defaults to current UTC time if not provided)",
     )
     photo_path: Optional[str] = Field(
         default=None,
+        alias="photoPath",
+        max_length=500,
         description="Local device or remote storage photo path",
     )
     photo: Optional[str] = Field(
         default=None,
+        max_length=500,
         description="Alias for photo_path matching Flutter Discovery.photo",
     )
     district: Optional[str] = Field(
         default=None,
+        max_length=100,
         description="District where observation was recorded (e.g. 'Zomba')",
     )
     note: str = Field(
         default="",
-        description="Field notes entered by user",
+        max_length=2000,
+        description="Field notes entered by user (up to 2000 chars matching Flutter JournalScreen)",
     )
     is_demo: bool = Field(
         default=False,
+        alias="isDemo",
         description="True if saved from demo mode identification, False if verified/live observation",
     )
 
@@ -78,8 +93,10 @@ class FlowerObservationCreate(BaseModel):
 class FlowerObservationUpdate(BaseModel):
     """Schema for updating an existing observation's notes or district."""
 
-    note: Optional[str] = Field(None, description="Updated field notes")
-    district: Optional[str] = Field(None, description="Updated district name")
+    model_config = ConfigDict(populate_by_name=True)
+
+    note: Optional[str] = Field(None, max_length=2000, description="Updated field notes")
+    district: Optional[str] = Field(None, max_length=100, description="Updated district name")
 
 
 class FlowerObservationOut(BaseModel):

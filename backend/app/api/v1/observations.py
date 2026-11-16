@@ -2,10 +2,10 @@
 
 Provides endpoints for mobile field observations (Flutter Discovery):
 - POST /api/v1/flowers/observations       — Record a new field observation
-- GET /api/v1/flowers/observations        — List observations with pagination
-- GET /api/v1/flowers/observations/{id}   — Fetch single observation details
-- PATCH /api/v1/flowers/observations/{id} — Update observation notes or district
-- DELETE /api/v1/flowers/observations/{id}— Remove observation
+- GET /api/v1/flowers/observations        — List observations (user-isolated)
+- GET /api/v1/flowers/observations/{id}   — Fetch single observation details (anti-IDOR)
+- PATCH /api/v1/flowers/observations/{id} — Update observation notes or district (owner only)
+- DELETE /api/v1/flowers/observations/{id}— Remove observation (owner only)
 """
 
 from __future__ import annotations
@@ -17,10 +17,12 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_optional_current_user
 from app.core.database import get_db
+from app.models.district import District
 from app.models.flower import Flower, FlowerObservation
 from app.models.user import User
 from app.schemas.observation import (
@@ -55,12 +57,27 @@ def _observation_to_out(obs: FlowerObservation) -> FlowerObservationOut:
     )
 
 
+async def _validate_district(db: AsyncSession, district_name: Optional[str]) -> Optional[str]:
+    """Validate that district is one of Malawi's 28 administrative districts and normalize name."""
+    if not district_name or not district_name.strip():
+        return None
+    cleaned = district_name.strip()
+    stmt = select(District).where(func.lower(District.name) == cleaned.lower())
+    district_obj = (await db.execute(stmt)).scalar_one_or_none()
+    if not district_obj:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"District '{cleaned}' is not one of Malawi's 28 recognized administrative districts.",
+        )
+    return district_obj.name
+
+
 async def _create_observation_handler(
     payload: FlowerObservationCreate,
     db: AsyncSession,
     user: Optional[User],
 ) -> FlowerObservationOut:
-    # Verify target flower exists in catalogue
+    # 1. Verify target flower exists in catalogue and is published
     stmt = select(Flower).where(Flower.id == payload.flower_id, Flower.is_published.is_(True))
     result = await db.execute(stmt)
     flower = result.scalar_one_or_none()
@@ -70,9 +87,12 @@ async def _create_observation_handler(
             detail=f"Flower '{payload.flower_id}' was not found in the botanical catalogue.",
         )
 
+    # 2. Validate district if provided
+    normalized_district = await _validate_district(db, payload.district)
+
     obs_id = payload.id.strip() if payload.id and payload.id.strip() else str(uuid.uuid4())
 
-    # Check if observation with this ID already exists
+    # 3. Check if observation with this ID already exists
     existing_stmt = select(FlowerObservation).where(FlowerObservation.id == obs_id)
     existing = (await db.execute(existing_stmt)).scalar_one_or_none()
     if existing:
@@ -87,14 +107,21 @@ async def _create_observation_handler(
         user_id=user.id if user else None,
         created_at=payload.created_at or datetime.now(timezone.utc),
         photo_path=payload.photo_path,
-        district=payload.district,
+        district=normalized_district,
         note=payload.note or "",
         is_demo=payload.is_demo,
         updated_at=datetime.now(timezone.utc),
     )
     db.add(obs)
-    await db.commit()
-    await db.refresh(obs)
+    try:
+        await db.commit()
+        await db.refresh(obs)
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Observation with ID '{obs_id}' already exists or conflicts with existing data.",
+        ) from exc
 
     logger.info("Recorded observation '%s' for flower '%s'", obs.id, obs.flower_id)
     return _observation_to_out(obs)
@@ -111,9 +138,11 @@ async def _list_observations_handler(
 ) -> FlowerObservationListResponse:
     stmt = select(FlowerObservation)
 
-    # If authenticated, filter by user ownership
+    # Ownership isolation: authenticated users see their own; unauthenticated callers see unowned
     if user:
         stmt = stmt.where(FlowerObservation.user_id == user.id)
+    else:
+        stmt = stmt.where(FlowerObservation.user_id.is_(None))
 
     if flower_id and flower_id.strip():
         stmt = stmt.where(FlowerObservation.flower_id == flower_id.strip())
@@ -151,8 +180,8 @@ async def _get_observation_handler(
             detail=f"Observation '{obs_id}' was not found.",
         )
 
-    # Anti-IDOR: if created by another user, hide existence
-    if user and obs.user_id and obs.user_id != user.id:
+    # Anti-IDOR: if created by another user or owned by a user while caller is unauthenticated
+    if obs.user_id is not None and (user is None or obs.user_id != user.id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Observation '{obs_id}' was not found.",
@@ -175,7 +204,7 @@ async def _update_observation_handler(
             detail=f"Observation '{obs_id}' was not found.",
         )
 
-    if user and obs.user_id and obs.user_id != user.id:
+    if obs.user_id is not None and (user is None or obs.user_id != user.id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Observation '{obs_id}' was not found.",
@@ -184,7 +213,7 @@ async def _update_observation_handler(
     if payload.note is not None:
         obs.note = payload.note
     if payload.district is not None:
-        obs.district = payload.district
+        obs.district = await _validate_district(db, payload.district)
 
     obs.updated_at = datetime.now(timezone.utc)
     await db.commit()
@@ -206,7 +235,7 @@ async def _delete_observation_handler(
             detail=f"Observation '{obs_id}' was not found.",
         )
 
-    if user and obs.user_id and obs.user_id != user.id:
+    if obs.user_id is not None and (user is None or obs.user_id != user.id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Observation '{obs_id}' was not found.",

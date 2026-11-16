@@ -7,7 +7,7 @@ No botanical descriptions, section keys or source URLs are invented here.
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.district import District
-from app.models.plant import Plant, PlantSection, PlantSource
+from app.models.flower import Flower as Plant, FlowerSection as PlantSection, FlowerSource as PlantSource
 
 # ---------------------------------------------------------------------------
 # Districts — from lib/locale_data.dart const districtsByRegion
