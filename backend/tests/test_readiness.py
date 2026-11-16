@@ -19,8 +19,8 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 FLORAMW_DB_PATH = BACKEND_DIR / "floramw.db"
 
 
-def _create_base_schema(conn, revision: str = "0006_add_device_token_hash_to_users"):
-    """Helper to construct a valid schema matching revision 0006 on an isolated connection."""
+def _create_base_schema(conn, revision: str = "0007_canonical_flower_naming_and_observations"):
+    """Helper to construct a valid schema matching revision 0007 on an isolated connection."""
     conn.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY)"))
     conn.execute(text(f"INSERT INTO alembic_version (version_num) VALUES ('{revision}')"))
 
@@ -30,29 +30,53 @@ def _create_base_schema(conn, revision: str = "0006_add_device_token_hash_to_use
         "region VARCHAR(50) NOT NULL, created_at DATETIME NOT NULL)"
     ))
     conn.execute(text(
-        "CREATE TABLE plants ("
+        "CREATE TABLE flowers ("
         "id VARCHAR(100) PRIMARY KEY, common_name_en VARCHAR(150) NOT NULL, "
         "scientific_name VARCHAR(150) NOT NULL UNIQUE, family VARCHAR(100) NOT NULL, "
         "category VARCHAR(50) NOT NULL, symbol VARCHAR(10), description TEXT NOT NULL, "
         "created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL, is_published BOOLEAN NOT NULL)"
     ))
     conn.execute(text(
-        "CREATE TABLE plant_sections ("
-        "id INTEGER PRIMARY KEY, plant_id VARCHAR(100) NOT NULL, "
+        "CREATE TABLE flower_sections ("
+        "id INTEGER PRIMARY KEY, flower_id VARCHAR(100) NOT NULL, "
         "section_key VARCHAR(100) NOT NULL, content TEXT NOT NULL, "
         "content_disclaimer_type VARCHAR(50) NOT NULL, verification_status VARCHAR(50) NOT NULL, "
         "source_citation TEXT, verified_by CHAR(36), verified_at DATETIME, updated_at DATETIME NOT NULL)"
     ))
     conn.execute(text(
-        "CREATE TABLE plant_sources ("
-        "id INTEGER PRIMARY KEY, plant_id VARCHAR(100) NOT NULL, "
+        "CREATE TABLE flower_sources ("
+        "id INTEGER PRIMARY KEY, flower_id VARCHAR(100) NOT NULL, "
         "title VARCHAR(255) NOT NULL, url VARCHAR(500) NOT NULL, is_pmra_reference BOOLEAN NOT NULL)"
     ))
     conn.execute(text(
-        "CREATE TABLE plant_distributions ("
-        "id INTEGER PRIMARY KEY, plant_id VARCHAR(100) NOT NULL, "
+        "CREATE TABLE flower_distributions ("
+        "id INTEGER PRIMARY KEY, flower_id VARCHAR(100) NOT NULL, "
         "district_id INTEGER NOT NULL, native_status VARCHAR(50) NOT NULL, "
         "herbarium_specimen_id VARCHAR(100), is_verified BOOLEAN NOT NULL, verified_at DATETIME)"
+    ))
+    conn.execute(text(
+        "CREATE TABLE flower_observations ("
+        "id VARCHAR(64) PRIMARY KEY, flower_id VARCHAR(100) NOT NULL, "
+        "user_id CHAR(36), created_at DATETIME NOT NULL, photo_path VARCHAR(500), "
+        "district VARCHAR(100), note TEXT NOT NULL, is_demo BOOLEAN NOT NULL, updated_at DATETIME NOT NULL)"
+    ))
+    conn.execute(text(
+        "CREATE TABLE flower_reports ("
+        "id VARCHAR(64) PRIMARY KEY, flower_id VARCHAR(100), "
+        "user_id CHAR(36), topic VARCHAR(100) NOT NULL, details TEXT NOT NULL, "
+        "source VARCHAR(500), status VARCHAR(30) NOT NULL, created_at DATETIME NOT NULL)"
+    ))
+    conn.execute(text(
+        "CREATE VIEW plants AS SELECT id, common_name_en, scientific_name, family, category, symbol, description, created_at, updated_at, is_published FROM flowers;"
+    ))
+    conn.execute(text(
+        "CREATE VIEW plant_sections AS SELECT id, flower_id AS plant_id, section_key, content, content_disclaimer_type, verification_status, source_citation, verified_by, verified_at, updated_at FROM flower_sections;"
+    ))
+    conn.execute(text(
+        "CREATE VIEW plant_sources AS SELECT id, flower_id AS plant_id, title, url, is_pmra_reference FROM flower_sources;"
+    ))
+    conn.execute(text(
+        "CREATE VIEW plant_distributions AS SELECT id, flower_id AS plant_id, district_id, native_status, herbarium_specimen_id, is_verified, verified_at FROM flower_distributions;"
     ))
     conn.execute(text(
         "CREATE TABLE users ("
@@ -74,7 +98,7 @@ def _create_base_schema(conn, revision: str = "0006_add_device_token_hash_to_use
         "CREATE TABLE identification_candidates ("
         "id CHAR(36) PRIMARY KEY, request_id CHAR(36) NOT NULL, rank INTEGER NOT NULL, "
         "scientific_name VARCHAR(200) NOT NULL, common_names TEXT, family VARCHAR(100), "
-        "genus VARCHAR(100), confidence FLOAT NOT NULL, matched_plant_id VARCHAR(64), "
+        "genus VARCHAR(100), confidence FLOAT NOT NULL, matched_flower_id VARCHAR(64), "
         "provider_taxon_id VARCHAR(100), notes TEXT, created_at DATETIME NOT NULL)"
     ))
     conn.execute(text(
@@ -96,16 +120,16 @@ def _create_base_schema(conn, revision: str = "0006_add_device_token_hash_to_use
 def test_get_expected_migration_head():
     """Verify that get_expected_migration_head returns the current Alembic head revision."""
     head = get_expected_migration_head()
-    assert head == "0006_add_device_token_hash_to_users"
+    assert head == "0007_canonical_flower_naming_and_observations"
 
 
 def test_readiness_valid_schema_and_head_accepted():
     """A database with the full expected schema and matching Alembic head passes verification."""
     engine = create_engine("sqlite:///:memory:")
     with engine.connect() as conn:
-        _create_base_schema(conn, "0006_add_device_token_hash_to_users")
+        _create_base_schema(conn, "0007_canonical_flower_naming_and_observations")
         # Should execute cleanly without raising any exception
-        verify_database_readiness(conn, expected_head="0006_add_device_token_hash_to_users")
+        verify_database_readiness(conn, expected_head="0007_canonical_flower_naming_and_observations")
 
 
 def test_readiness_missing_alembic_version_rejected():
@@ -171,22 +195,22 @@ def test_readiness_missing_required_table_rejected():
 
 
 def test_readiness_missing_critical_column_rejected():
-    """A database where a critical column is missing (e.g. plants.common_name_en) is rejected."""
+    """A database where a critical column is missing (e.g. flowers.common_name_en) is rejected."""
     engine = create_engine("sqlite:///:memory:")
     with engine.connect() as conn:
         _create_base_schema(conn)
-        conn.execute(text("ALTER TABLE plants DROP COLUMN common_name_en"))
+        conn.execute(text("DROP VIEW IF EXISTS plants"))
+        conn.execute(text("ALTER TABLE flowers DROP COLUMN common_name_en"))
         with pytest.raises(DatabaseReadinessError, match="missing required columns.*common_name_en"):
             verify_database_readiness(conn)
 
 
 def test_readiness_obsolete_column_rejected():
-    """A database containing deprecated columns (e.g. plants.common_name or plant_sources.label) is rejected."""
+    """A database containing deprecated columns (e.g. flowers.common_name or flower_sources.label) is rejected."""
     engine = create_engine("sqlite:///:memory:")
     with engine.connect() as conn:
         _create_base_schema(conn)
-        # Add back obsolete column
-        conn.execute(text("ALTER TABLE plants ADD COLUMN common_name VARCHAR(255)"))
+        conn.execute(text("ALTER TABLE flowers ADD COLUMN common_name VARCHAR(255)"))
         with pytest.raises(DatabaseReadinessError, match="found deprecated columns.*common_name"):
             verify_database_readiness(conn)
 
@@ -197,4 +221,3 @@ def test_readiness_healthy_development_database_accepted():
     engine = create_engine(f"sqlite:///{FLORAMW_DB_PATH}")
     with engine.connect() as conn:
         verify_database_readiness(conn)
-

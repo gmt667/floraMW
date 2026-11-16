@@ -22,7 +22,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 
 from app.core.database import Base
 from app.models.user import GUID
@@ -219,13 +219,14 @@ class IdentificationCandidate(Base):
         nullable=False,
         doc="Provider-reported confidence score, 0.0 to 1.0.",
     )
-    matched_plant_id = Column(
+    matched_flower_id = Column(
         String(64),
-        ForeignKey("plants.id", ondelete="SET NULL"),
+        ForeignKey("flowers.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        doc="Foreign key to local botanical catalogue Plant.id if matched.",
+        doc="Foreign key to local botanical catalogue Flower.id if matched.",
     )
+    matched_plant_id = synonym("matched_flower_id")
     provider_taxon_id = Column(
         String(100),
         nullable=True,
@@ -244,7 +245,8 @@ class IdentificationCandidate(Base):
 
     # Relationships
     request = relationship("IdentificationRequest", back_populates="candidates")
-    matched_plant = relationship("Plant")
+    matched_flower = relationship("Flower")
+    matched_plant = synonym("matched_flower")
 
     @property
     def common_names_list(self) -> List[str]:

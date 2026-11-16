@@ -17,7 +17,7 @@ class District(Base):
     )
 
     distributions = relationship(
-        "PlantDistribution",
+        "FlowerDistribution",
         back_populates="district",
         cascade="all, delete-orphan",
     )

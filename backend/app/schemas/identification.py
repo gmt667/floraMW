@@ -167,16 +167,31 @@ class IdentificationCandidateOut(BaseModel):
     )
     catalogue_matched: bool = Field(
         description=(
-            "True if this species was found in the FloraMW plant catalogue. "
+            "True if this species was found in the FloraMW plant/flower catalogue. "
             "When False, this is an external species not currently in the catalogue."
         )
+    )
+    catalogue_flower_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "FloraMW canonical flower slug for catalogue-matched species. "
+            "Use this to fetch full botanical details via GET /api/v1/flowers/{id}."
+        ),
     )
     catalogue_plant_id: Optional[str] = Field(
         default=None,
         description=(
-            "FloraMW plant slug for catalogue-matched species. "
-            "Use this to fetch full botanical details via GET /api/v1/plants/{id}."
+            "FloraMW legacy plant slug for catalogue-matched species. "
+            "Identical to catalogue_flower_id for backward compatibility."
         ),
+    )
+    flower_id: Optional[str] = Field(
+        default=None,
+        description="Alias for catalogue_flower_id.",
+    )
+    plant_id: Optional[str] = Field(
+        default=None,
+        description="Alias for catalogue_plant_id matching Flutter IdentificationResult candidate ID.",
     )
     provider_notes: Optional[str] = Field(
         default=None,
