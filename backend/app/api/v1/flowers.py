@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.models.flower import Flower, FlowerDistribution
+from app.models.district import District
 from app.schemas.flower import (
     FlowerSummaryOut,
     FlowerDetailOut,
@@ -85,8 +86,12 @@ async def list_flowers(
         stmt = stmt.where(func.lower(Flower.family) == family.strip().lower())
 
     if district and district.strip():
-        stmt = stmt.join(Flower.distributions).join(FlowerDistribution.district).where(
-            func.lower(FlowerDistribution.district.has(name=district.strip().title()))
+        cleaned_district = district.strip().lower()
+        stmt = (
+            stmt.join(Flower.distributions)
+            .join(FlowerDistribution.district)
+            .where(func.lower(District.name) == cleaned_district)
+            .distinct()
         )
 
     # Count before pagination

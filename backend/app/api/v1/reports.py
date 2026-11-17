@@ -24,6 +24,7 @@ from app.models.flower import Flower, FlowerReport
 from app.models.user import User
 from app.schemas.report import (
     FlowerReportCreate,
+    FlowerReportUpdate,
     FlowerReportListResponse,
     FlowerReportOut,
 )
@@ -106,6 +107,9 @@ async def _create_report_handler(
 
 async def _list_reports_handler(
     flower_id: Optional[str],
+    status_filter: Optional[str],
+    topic: Optional[str],
+    all_users: bool,
     page: int,
     limit: int,
     db: AsyncSession,
@@ -113,13 +117,26 @@ async def _list_reports_handler(
 ) -> FlowerReportListResponse:
     stmt = select(FlowerReport)
 
-    if user:
-        stmt = stmt.where(FlowerReport.user_id == user.id)
+    if all_users:
+        if user is None or user.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Administrative access required to list reports across all users.",
+            )
     else:
-        stmt = stmt.where(FlowerReport.user_id.is_(None))
+        if user:
+            stmt = stmt.where(FlowerReport.user_id == user.id)
+        else:
+            stmt = stmt.where(FlowerReport.user_id.is_(None))
 
     if flower_id and flower_id.strip():
         stmt = stmt.where(FlowerReport.flower_id == flower_id.strip())
+
+    if status_filter and status_filter.strip():
+        stmt = stmt.where(FlowerReport.status == status_filter.strip())
+
+    if topic and topic.strip():
+        stmt = stmt.where(func.lower(FlowerReport.topic) == topic.strip().lower())
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.execute(count_stmt)).scalar_one()
@@ -146,14 +163,89 @@ async def _get_report_handler(
             detail=f"Report '{report_id}' was not found.",
         )
 
-    # Anti-IDOR: if report has an owner, only that owner can retrieve it
-    if report.user_id is not None and (user is None or report.user_id != user.id):
+    is_admin = user is not None and user.role == "admin"
+    is_owner = report.user_id is None if user is None else report.user_id == user.id
+
+    # Anti-IDOR: only owner or administrator may view report
+    if not is_admin and not is_owner:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Report '{report_id}' was not found.",
         )
 
     return _report_to_out(report)
+
+
+async def _update_report_handler(
+    report_id: str,
+    payload: FlowerReportUpdate,
+    db: AsyncSession,
+    user: Optional[User],
+) -> FlowerReportOut:
+    stmt = select(FlowerReport).where(FlowerReport.id == report_id.strip())
+    report = (await db.execute(stmt)).scalar_one_or_none()
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report '{report_id}' was not found.",
+        )
+
+    is_admin = user is not None and user.role == "admin"
+    is_owner = report.user_id is None if user is None else report.user_id == user.id
+
+    if not is_admin and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report '{report_id}' was not found.",
+        )
+
+    if payload.status is not None:
+        if not is_admin and payload.status != report.status:
+            if payload.status not in ("submitted", "local-draft"):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only administrative users can resolve or advance report status.",
+                )
+        report.status = payload.status
+
+    if payload.topic is not None:
+        report.topic = payload.topic.strip()
+    if payload.details is not None:
+        report.details = payload.details.strip()
+    if payload.source is not None:
+        report.source = payload.source.strip() if payload.source else None
+
+    await db.commit()
+    await db.refresh(report)
+    logger.info("Updated report '%s' (status=%s)", report.id, report.status)
+    return _report_to_out(report)
+
+
+async def _delete_report_handler(
+    report_id: str,
+    db: AsyncSession,
+    user: Optional[User],
+) -> None:
+    stmt = select(FlowerReport).where(FlowerReport.id == report_id.strip())
+    report = (await db.execute(stmt)).scalar_one_or_none()
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report '{report_id}' was not found.",
+        )
+
+    is_admin = user is not None and user.role == "admin"
+    is_owner = report.user_id is None if user is None else report.user_id == user.id
+
+    if not is_admin and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report '{report_id}' was not found.",
+        )
+
+    await db.delete(report)
+    await db.commit()
+    logger.info("Deleted report '%s'", report_id)
 
 
 # ---------------------------------------------------------------------------
@@ -194,13 +286,39 @@ async def create_report(
 )
 async def list_reports(
     flower_id: Optional[str] = Query(None, description="Filter by flower ID"),
+    status: Optional[str] = Query(None, description="Filter by report status ('submitted', 'in_review', etc.)"),
+    topic: Optional[str] = Query(None, description="Filter by report category"),
+    all_users: bool = Query(False, description="Admin-only: list reports across all users"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
     db: AsyncSession = Depends(get_db),
     user: Optional[User] = Depends(get_optional_current_user),
 ):
     """Retrieve submitted reports for the authenticated caller or unowned session."""
-    return await _list_reports_handler(flower_id, page, limit, db, user)
+    return await _list_reports_handler(flower_id, status, topic, all_users, page, limit, db, user)
+
+
+@router.get(
+    "/flowers/reports/admin",
+    response_model=FlowerReportListResponse,
+    summary="Administrative report management queue",
+)
+@router.get(
+    "/reports/admin",
+    response_model=FlowerReportListResponse,
+    summary="Administrative report management queue (Alias)",
+)
+async def list_admin_reports(
+    flower_id: Optional[str] = Query(None, description="Filter by flower ID"),
+    status: Optional[str] = Query(None, description="Filter by report status"),
+    topic: Optional[str] = Query(None, description="Filter by report topic"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_optional_current_user),
+):
+    """Administrative review queue listing reports across all users (Requires admin role)."""
+    return await _list_reports_handler(flower_id, status, topic, True, page, limit, db, user)
 
 
 @router.get(
@@ -220,3 +338,42 @@ async def get_report(
 ):
     """Retrieve details of a single report by ID."""
     return await _get_report_handler(report_id, db, user)
+
+
+@router.patch(
+    "/flowers/reports/{report_id}",
+    response_model=FlowerReportOut,
+    summary="Update report details or resolution status",
+)
+@router.patch(
+    "/reports/{report_id}",
+    response_model=FlowerReportOut,
+    summary="Update report details or resolution status (Alias)",
+)
+async def update_report(
+    report_id: str,
+    payload: FlowerReportUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_optional_current_user),
+):
+    """Update report details (owner) or advance resolution status (admin)."""
+    return await _update_report_handler(report_id, payload, db, user)
+
+
+@router.delete(
+    "/flowers/reports/{report_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a botanical report",
+)
+@router.delete(
+    "/reports/{report_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a botanical report (Alias)",
+)
+async def delete_report(
+    report_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_optional_current_user),
+):
+    """Delete a botanical report (owner or administrator)."""
+    await _delete_report_handler(report_id, db, user)

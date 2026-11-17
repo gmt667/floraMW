@@ -42,6 +42,28 @@ class FlowerReportCreate(BaseModel):
         return self
 
 
+class FlowerReportUpdate(BaseModel):
+    """Schema for updating a botanical report or changing review status."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    status: Optional[str] = Field(
+        None,
+        max_length=30,
+        description="Updated status: 'submitted', 'in_review', 'resolved', 'rejected', 'local-draft'",
+    )
+    topic: Optional[str] = Field(None, min_length=2, max_length=100, description="Updated topic category")
+    details: Optional[str] = Field(None, min_length=5, max_length=5000, description="Updated report details")
+    source: Optional[str] = Field(None, max_length=500, description="Updated reference citation")
+    source_reference: Optional[str] = Field(None, alias="sourceReference", max_length=500)
+
+    @model_validator(mode="after")
+    def validate_update_fields(self) -> FlowerReportUpdate:
+        if not self.source and self.source_reference:
+            self.source = self.source_reference
+        return self
+
+
 class FlowerReportOut(BaseModel):
     """Report response schema."""
 
@@ -68,5 +90,6 @@ class FlowerReportListResponse(BaseModel):
 
 # Backward compatibility aliases
 ReportCreate = FlowerReportCreate
+ReportUpdate = FlowerReportUpdate
 ReportOut = FlowerReportOut
 ReportListResponse = FlowerReportListResponse

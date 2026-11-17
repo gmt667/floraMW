@@ -131,6 +131,8 @@ async def _list_observations_handler(
     flower_id: Optional[str],
     district: Optional[str],
     is_demo: Optional[bool],
+    all_users: bool,
+    filter_user_id: Optional[str],
     page: int,
     limit: int,
     db: AsyncSession,
@@ -138,11 +140,22 @@ async def _list_observations_handler(
 ) -> FlowerObservationListResponse:
     stmt = select(FlowerObservation)
 
-    # Ownership isolation: authenticated users see their own; unauthenticated callers see unowned
-    if user:
-        stmt = stmt.where(FlowerObservation.user_id == user.id)
+    is_admin = user is not None and user.role == "admin"
+
+    if all_users or filter_user_id:
+        if not is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Administrative access required to list observations across all users.",
+            )
+        if filter_user_id and filter_user_id.strip():
+            stmt = stmt.where(FlowerObservation.user_id == filter_user_id.strip())
     else:
-        stmt = stmt.where(FlowerObservation.user_id.is_(None))
+        # Ownership isolation: authenticated users see their own; unauthenticated callers see unowned
+        if user:
+            stmt = stmt.where(FlowerObservation.user_id == user.id)
+        else:
+            stmt = stmt.where(FlowerObservation.user_id.is_(None))
 
     if flower_id and flower_id.strip():
         stmt = stmt.where(FlowerObservation.flower_id == flower_id.strip())
@@ -180,8 +193,11 @@ async def _get_observation_handler(
             detail=f"Observation '{obs_id}' was not found.",
         )
 
+    is_admin = user is not None and user.role == "admin"
+    is_owner = obs.user_id is None if user is None else obs.user_id == user.id
+
     # Anti-IDOR: if created by another user or owned by a user while caller is unauthenticated
-    if obs.user_id is not None and (user is None or obs.user_id != user.id):
+    if not is_admin and not is_owner:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Observation '{obs_id}' was not found.",
@@ -204,7 +220,10 @@ async def _update_observation_handler(
             detail=f"Observation '{obs_id}' was not found.",
         )
 
-    if obs.user_id is not None and (user is None or obs.user_id != user.id):
+    is_admin = user is not None and user.role == "admin"
+    is_owner = obs.user_id is None if user is None else obs.user_id == user.id
+
+    if not is_admin and not is_owner:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Observation '{obs_id}' was not found.",
@@ -235,7 +254,10 @@ async def _delete_observation_handler(
             detail=f"Observation '{obs_id}' was not found.",
         )
 
-    if obs.user_id is not None and (user is None or obs.user_id != user.id):
+    is_admin = user is not None and user.role == "admin"
+    is_owner = obs.user_id is None if user is None else obs.user_id == user.id
+
+    if not is_admin and not is_owner:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Observation '{obs_id}' was not found.",
@@ -285,13 +307,58 @@ async def list_observations(
     flower_id: Optional[str] = Query(None, description="Filter by flower ID"),
     district: Optional[str] = Query(None, description="Filter by district"),
     is_demo: Optional[bool] = Query(None, description="Filter by demo status"),
+    all_users: bool = Query(False, description="Admin-only: list observations across all users"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
     db: AsyncSession = Depends(get_db),
     user: Optional[User] = Depends(get_optional_current_user),
 ):
     """Retrieve observations recorded by this user/device."""
-    return await _list_observations_handler(flower_id, district, is_demo, page, limit, db, user)
+    return await _list_observations_handler(
+        flower_id=flower_id,
+        district=district,
+        is_demo=is_demo,
+        all_users=all_users,
+        filter_user_id=None,
+        page=page,
+        limit=limit,
+        db=db,
+        user=user,
+    )
+
+
+@router.get(
+    "/flowers/observations/admin",
+    response_model=FlowerObservationListResponse,
+    summary="Administrative observation management queue",
+)
+@router.get(
+    "/observations/admin",
+    response_model=FlowerObservationListResponse,
+    summary="Administrative observation management queue (Alias)",
+)
+async def list_admin_observations(
+    flower_id: Optional[str] = Query(None, description="Filter by flower ID"),
+    district: Optional[str] = Query(None, description="Filter by district"),
+    is_demo: Optional[bool] = Query(None, description="Filter by demo status"),
+    user_id: Optional[str] = Query(None, description="Filter by specific user ID"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_optional_current_user),
+):
+    """Administrative observation review queue across all users (Requires admin role)."""
+    return await _list_observations_handler(
+        flower_id=flower_id,
+        district=district,
+        is_demo=is_demo,
+        all_users=True,
+        filter_user_id=user_id,
+        page=page,
+        limit=limit,
+        db=db,
+        user=user,
+    )
 
 
 @router.get(
