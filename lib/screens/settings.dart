@@ -239,14 +239,16 @@ class _DraftsScreenState extends State<DraftsScreen> {
                         tooltip: 'Submit report',
                         icon: const Icon(Icons.send_outlined),
                         onPressed: () async {
-                          final client = widget.store.syncService?.client ??
+                          final client =
+                              widget.store.syncService?.client ??
                               FloraApiClient(prefs: widget.store.prefs);
                           await guarded(context, () async {
                             final result = await client.submitReport(
                               id: r['id'] as String?,
                               flowerId: r['plantId'] as String?,
                               plantId: r['plantId'] as String?,
-                              topic: (r['topic'] as String?) ?? 'Identification',
+                              topic:
+                                  (r['topic'] as String?) ?? 'Identification',
                               details: (r['details'] as String?) ?? '',
                               source: r['source'] as String?,
                             );

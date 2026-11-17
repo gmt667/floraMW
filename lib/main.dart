@@ -338,7 +338,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _identifyService = ApiIdentificationService(
-      client: widget.store.syncService?.client ?? FloraApiClient(prefs: widget.store.prefs),
+      client:
+          widget.store.syncService?.client ??
+          FloraApiClient(prefs: widget.store.prefs),
     );
   }
 
@@ -449,7 +451,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       });
     }
     try {
-      final client = widget.store.syncService?.client ??
+      final client =
+          widget.store.syncService?.client ??
           FloraApiClient(prefs: widget.store.prefs);
       final remote = await client.getFlowers(
         district: widget.store.district,
@@ -508,10 +511,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
         if (widget.store.loadWarning != null) Notice(widget.store.loadWarning!),
         if (_errorMessage != null && _remotePlants == null)
-          Notice(
-            _errorMessage!,
-            icon: Icons.cloud_off_outlined,
-          ),
+          Notice(_errorMessage!, icon: Icons.cloud_off_outlined),
         const FloraText(
           'ROOTED IN MALAWI',
           style: TextStyle(

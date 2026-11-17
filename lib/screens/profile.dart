@@ -197,7 +197,8 @@ class _ReportScreenState extends State<ReportScreen> {
                 : () async {
                     if (!form.currentState!.validate()) return;
                     setState(() => submitting = true);
-                    final client = widget.store.syncService?.client ??
+                    final client =
+                        widget.store.syncService?.client ??
                         FloraApiClient(prefs: widget.store.prefs);
                     try {
                       final result = await client.submitReport(
@@ -213,7 +214,8 @@ class _ReportScreenState extends State<ReportScreen> {
                         'topic': category,
                         'details': details.text.trim(),
                         'source': source.text.trim(),
-                        'createdAt': result['created_at'] ??
+                        'createdAt':
+                            result['created_at'] ??
                             DateTime.now().toIso8601String(),
                         'status': 'submitted',
                       });

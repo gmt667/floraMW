@@ -42,7 +42,8 @@ class FloraApiException implements Exception {
   });
 
   @override
-  String toString() => 'FloraApiException: $message (code: $errorCode, status: $statusCode, retryAfter: $retryAfterSeconds)';
+  String toString() =>
+      'FloraApiException: $message (code: $errorCode, status: $statusCode, retryAfter: $retryAfterSeconds)';
 }
 
 /// Structured candidate representation matching backend IdentificationCandidateOut schema.
@@ -80,8 +81,11 @@ class ApiIdentificationCandidate {
       family: json['family'] as String?,
       genus: json['genus'] as String?,
       catalogueMatched: json['catalogue_matched'] as bool? ?? false,
-      flowerId: json['flower_id'] as String? ?? json['catalogue_flower_id'] as String?,
-      plantId: json['plant_id'] as String? ?? json['catalogue_plant_id'] as String?,
+      flowerId:
+          json['flower_id'] as String? ??
+          json['catalogue_flower_id'] as String?,
+      plantId:
+          json['plant_id'] as String? ?? json['catalogue_plant_id'] as String?,
     );
   }
 }
@@ -113,7 +117,11 @@ class ApiIdentificationResponse {
   factory ApiIdentificationResponse.fromJson(Map<String, dynamic> json) {
     final provider = json['provider'] as Map<String, dynamic>? ?? {};
     final candidatesList = (json['candidates'] as List<dynamic>? ?? [])
-        .map((c) => ApiIdentificationCandidate.fromJson(Map<String, dynamic>.from(c as Map)))
+        .map(
+          (c) => ApiIdentificationCandidate.fromJson(
+            Map<String, dynamic>.from(c as Map),
+          ),
+        )
         .toList();
     final idsList = (json['candidate_ids'] as List<dynamic>? ?? [])
         .map((e) => e.toString())
@@ -159,7 +167,8 @@ class ApiObservation {
     id: json['id'] as String,
     flowerId: json['flower_id'] as String? ?? json['flowerId'] as String? ?? '',
     plantId: json['plant_id'] as String? ?? json['plantId'] as String? ?? '',
-    createdAt: json['created_at'] as String? ?? json['createdAt'] as String? ?? '',
+    createdAt:
+        json['created_at'] as String? ?? json['createdAt'] as String? ?? '',
     photoPath: json['photo_path'] as String? ?? json['photo'] as String?,
     district: json['district'] as String?,
     note: json['note'] as String? ?? '',
@@ -204,9 +213,9 @@ class FloraApiClient {
     http.Client? httpClient,
     String? baseUrl,
     SharedPreferences? prefs,
-  })  : _httpClient = httpClient ?? http.Client(),
-        baseUrl = (baseUrl ?? defaultBaseUrl).replaceAll(RegExp(r'/+$'), ''),
-        _prefs = prefs {
+  }) : _httpClient = httpClient ?? http.Client(),
+       baseUrl = (baseUrl ?? defaultBaseUrl).replaceAll(RegExp(r'/+$'), ''),
+       _prefs = prefs {
     if (_prefs != null) {
       _cachedToken = _prefs.getString(tokenStorageKey);
     }
@@ -271,10 +280,7 @@ class FloraApiClient {
     final uri = Uri.parse('$baseUrl/api/v1/auth/anonymous');
     try {
       final response = await _httpClient
-          .post(
-            uri,
-            headers: const {'Accept': 'application/json'},
-          )
+          .post(uri, headers: const {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 201) {
@@ -291,7 +297,9 @@ class FloraApiClient {
 
       final errorBody = _parseErrorBody(response.body);
       throw FloraApiException(
-        message: errorBody['message'] ?? 'Authentication failed with status ${response.statusCode}',
+        message:
+            errorBody['message'] ??
+            'Authentication failed with status ${response.statusCode}',
         statusCode: response.statusCode,
         errorCode: errorBody['error_code'],
         retryable: errorBody['retryable'] ?? false,
@@ -333,7 +341,11 @@ class FloraApiClient {
     }
 
     final reqId = clientRequestId ?? generateUuidV4();
-    return _sendIdentificationRequest(photoPath: photoPath, clientRequestId: reqId, isRetryAfterAuth: false);
+    return _sendIdentificationRequest(
+      photoPath: photoPath,
+      clientRequestId: reqId,
+      isRetryAfterAuth: false,
+    );
   }
 
   Future<ApiIdentificationResponse> _sendIdentificationRequest({
@@ -350,10 +362,15 @@ class FloraApiClient {
       request.headers['Accept'] = 'application/json';
       request.headers['X-Client-Request-Id'] = clientRequestId;
 
-      final multipartFile = await http.MultipartFile.fromPath('image', photoPath);
+      final multipartFile = await http.MultipartFile.fromPath(
+        'image',
+        photoPath,
+      );
       request.files.add(multipartFile);
 
-      final streamedResponse = await _httpClient.send(request).timeout(defaultTimeout);
+      final streamedResponse = await _httpClient
+          .send(request)
+          .timeout(defaultTimeout);
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
@@ -377,7 +394,9 @@ class FloraApiClient {
 
       final errorBody = _parseErrorBody(response.body);
       throw FloraApiException(
-        message: errorBody['message'] ?? 'Identification failed with status ${response.statusCode}',
+        message:
+            errorBody['message'] ??
+            'Identification failed with status ${response.statusCode}',
         statusCode: response.statusCode,
         errorCode: errorBody['error_code'],
         retryable: errorBody['retryable'] ?? false,
@@ -421,20 +440,32 @@ class FloraApiClient {
       };
       switch (method.toUpperCase()) {
         case 'GET':
-          response = await _httpClient.get(uri, headers: headers).timeout(defaultTimeout);
+          response = await _httpClient
+              .get(uri, headers: headers)
+              .timeout(defaultTimeout);
           break;
         case 'POST':
           response = await _httpClient
-              .post(uri, headers: headers, body: body != null ? jsonEncode(body) : null)
+              .post(
+                uri,
+                headers: headers,
+                body: body != null ? jsonEncode(body) : null,
+              )
               .timeout(defaultTimeout);
           break;
         case 'PATCH':
           response = await _httpClient
-              .patch(uri, headers: headers, body: body != null ? jsonEncode(body) : null)
+              .patch(
+                uri,
+                headers: headers,
+                body: body != null ? jsonEncode(body) : null,
+              )
               .timeout(defaultTimeout);
           break;
         case 'DELETE':
-          response = await _httpClient.delete(uri, headers: headers).timeout(defaultTimeout);
+          response = await _httpClient
+              .delete(uri, headers: headers)
+              .timeout(defaultTimeout);
           break;
         default:
           throw UnsupportedError('Unsupported HTTP method $method');
@@ -461,11 +492,16 @@ class FloraApiClient {
         if (retryAfterHeader != null) {
           retryAfterSeconds = int.tryParse(retryAfterHeader);
         }
-        if (retryAfterSeconds == null && errorBody['retry_after_seconds'] != null) {
-          retryAfterSeconds = int.tryParse(errorBody['retry_after_seconds'].toString());
+        if (retryAfterSeconds == null &&
+            errorBody['retry_after_seconds'] != null) {
+          retryAfterSeconds = int.tryParse(
+            errorBody['retry_after_seconds'].toString(),
+          );
         }
         throw FloraApiException(
-          message: errorBody['message'] ?? 'Rate limit exceeded. Please try again later.',
+          message:
+              errorBody['message'] ??
+              'Rate limit exceeded. Please try again later.',
           statusCode: 429,
           errorCode: errorBody['error_code'] ?? 'RATE_LIMIT_EXCEEDED',
           retryable: true,
@@ -505,7 +541,9 @@ class FloraApiClient {
     }
     final errorBody = _parseErrorBody(response.body);
     throw FloraApiException(
-      message: errorBody['message'] ?? 'Failed to create observation (${response.statusCode})',
+      message:
+          errorBody['message'] ??
+          'Failed to create observation (${response.statusCode})',
       statusCode: response.statusCode,
       errorCode: errorBody['error_code'],
       retryable: response.statusCode >= 500,
@@ -514,7 +552,9 @@ class FloraApiClient {
 
   /// Retrieve a specific field observation by identifier.
   Future<ApiObservation> getObservation(String obsId) async {
-    final uri = Uri.parse('$baseUrl/api/v1/flowers/observations/${obsId.trim()}');
+    final uri = Uri.parse(
+      '$baseUrl/api/v1/flowers/observations/${obsId.trim()}',
+    );
     final response = await _sendAuthenticatedRequest('GET', uri);
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -522,7 +562,9 @@ class FloraApiClient {
     }
     final errorBody = _parseErrorBody(response.body);
     throw FloraApiException(
-      message: errorBody['message'] ?? 'Failed to get observation (${response.statusCode})',
+      message:
+          errorBody['message'] ??
+          'Failed to get observation (${response.statusCode})',
       statusCode: response.statusCode,
       errorCode: errorBody['error_code'],
       retryable: response.statusCode >= 500,
@@ -530,19 +572,28 @@ class FloraApiClient {
   }
 
   /// List field journal observations recorded by this user/device.
-  Future<List<ApiObservation>> listObservations({int page = 1, int limit = 20}) async {
-    final uri = Uri.parse('$baseUrl/api/v1/flowers/observations?page=$page&limit=$limit');
+  Future<List<ApiObservation>> listObservations({
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/v1/flowers/observations?page=$page&limit=$limit',
+    );
     final response = await _sendAuthenticatedRequest('GET', uri);
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       final items = (json['items'] as List<dynamic>? ?? [])
-          .map((e) => ApiObservation.fromJson(Map<String, dynamic>.from(e as Map)))
+          .map(
+            (e) => ApiObservation.fromJson(Map<String, dynamic>.from(e as Map)),
+          )
           .toList();
       return items;
     }
     final errorBody = _parseErrorBody(response.body);
     throw FloraApiException(
-      message: errorBody['message'] ?? 'Failed to list observations (${response.statusCode})',
+      message:
+          errorBody['message'] ??
+          'Failed to list observations (${response.statusCode})',
       statusCode: response.statusCode,
       errorCode: errorBody['error_code'],
       retryable: response.statusCode >= 500,
@@ -550,8 +601,13 @@ class FloraApiClient {
   }
 
   /// Update notes or district for a recorded observation.
-  Future<ApiObservation> updateObservation(String obsId, Map<String, dynamic> data) async {
-    final uri = Uri.parse('$baseUrl/api/v1/flowers/observations/${obsId.trim()}');
+  Future<ApiObservation> updateObservation(
+    String obsId,
+    Map<String, dynamic> data,
+  ) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/v1/flowers/observations/${obsId.trim()}',
+    );
     final response = await _sendAuthenticatedRequest('PATCH', uri, body: data);
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -559,7 +615,9 @@ class FloraApiClient {
     }
     final errorBody = _parseErrorBody(response.body);
     throw FloraApiException(
-      message: errorBody['message'] ?? 'Failed to update observation (${response.statusCode})',
+      message:
+          errorBody['message'] ??
+          'Failed to update observation (${response.statusCode})',
       statusCode: response.statusCode,
       errorCode: errorBody['error_code'],
       retryable: response.statusCode >= 500,
@@ -568,14 +626,18 @@ class FloraApiClient {
 
   /// Delete a recorded observation by identifier.
   Future<void> deleteObservation(String obsId) async {
-    final uri = Uri.parse('$baseUrl/api/v1/flowers/observations/${obsId.trim()}');
+    final uri = Uri.parse(
+      '$baseUrl/api/v1/flowers/observations/${obsId.trim()}',
+    );
     final response = await _sendAuthenticatedRequest('DELETE', uri);
     if (response.statusCode == 204) {
       return;
     }
     final errorBody = _parseErrorBody(response.body);
     throw FloraApiException(
-      message: errorBody['message'] ?? 'Failed to delete observation (${response.statusCode})',
+      message:
+          errorBody['message'] ??
+          'Failed to delete observation (${response.statusCode})',
       statusCode: response.statusCode,
       errorCode: errorBody['error_code'],
       retryable: response.statusCode >= 500,
@@ -597,19 +659,25 @@ class FloraApiClient {
       'limit': limit.toString(),
       if (sortBy != null && sortBy.isNotEmpty) 'sort': sortBy,
       if (search != null && search.trim().isNotEmpty) 'q': search.trim(),
-      if (category != null && category.trim().isNotEmpty && category.trim() != 'All plants')
+      if (category != null &&
+          category.trim().isNotEmpty &&
+          category.trim() != 'All plants')
         'category': category.trim(),
       if (family != null && family.trim().isNotEmpty) 'family': family.trim(),
-      if (district != null && district.trim().isNotEmpty) 'district': district.trim(),
+      if (district != null && district.trim().isNotEmpty)
+        'district': district.trim(),
     };
-    final uri = Uri.parse('$baseUrl/api/v1/flowers').replace(queryParameters: queryParams);
+    final uri = Uri.parse(
+      '$baseUrl/api/v1/flowers',
+    ).replace(queryParameters: queryParams);
     final response = await _sendAuthenticatedRequest('GET', uri);
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       final items = (json['items'] as List<dynamic>? ?? []);
       return items.map((raw) {
         final m = Map<String, dynamic>.from(raw as Map);
-        final id = (m['id'] ?? m['flower_id'] ?? m['plant_id'] ?? '').toString();
+        final id = (m['id'] ?? m['flower_id'] ?? m['plant_id'] ?? '')
+            .toString();
         // Look up local plant to preserve sections and sources for ProfileScreen
         Plant? local;
         try {
@@ -621,9 +689,11 @@ class FloraApiClient {
           name: (m['name'] ?? local?.name ?? '').toString(),
           scientific: (m['scientific'] ?? local?.scientific ?? '').toString(),
           family: (m['family'] ?? local?.family ?? '').toString(),
-          category: (m['category'] ?? local?.category ?? 'Garden flowers').toString(),
+          category: (m['category'] ?? local?.category ?? 'Garden flowers')
+              .toString(),
           symbol: (m['symbol'] ?? local?.symbol ?? '🌸').toString(),
-          description: (m['description'] ?? local?.description ?? '').toString(),
+          description: (m['description'] ?? local?.description ?? '')
+              .toString(),
           sections: local?.sections ?? pending,
           sources: local?.sources ?? const [pmraSource],
         );
@@ -631,7 +701,9 @@ class FloraApiClient {
     }
     final errorBody = _parseErrorBody(response.body);
     throw FloraApiException(
-      message: errorBody['message'] ?? 'Failed to retrieve flower catalogue (${response.statusCode})',
+      message:
+          errorBody['message'] ??
+          'Failed to retrieve flower catalogue (${response.statusCode})',
       statusCode: response.statusCode,
       errorCode: errorBody['error_code'],
       retryable: response.statusCode >= 500,
@@ -676,14 +748,19 @@ class FloraApiClient {
       if (source != null && source.trim().isNotEmpty) ...{
         'source': source.trim(),
         'source_reference': source.trim(),
-      } else if (sourceReference != null && sourceReference.trim().isNotEmpty) ...{
+      } else if (sourceReference != null &&
+          sourceReference.trim().isNotEmpty) ...{
         'source': sourceReference.trim(),
         'source_reference': sourceReference.trim(),
       },
       'status': 'submitted',
     };
 
-    final response = await _sendAuthenticatedRequest('POST', uri, body: payload);
+    final response = await _sendAuthenticatedRequest(
+      'POST',
+      uri,
+      body: payload,
+    );
     if (response.statusCode == 201) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       return json;
@@ -694,7 +771,9 @@ class FloraApiClient {
     }
     final errorBody = _parseErrorBody(response.body);
     throw FloraApiException(
-      message: errorBody['message'] ?? 'Failed to submit report (${response.statusCode})',
+      message:
+          errorBody['message'] ??
+          'Failed to submit report (${response.statusCode})',
       statusCode: response.statusCode,
       errorCode: errorBody['error_code'],
       retryable: response.statusCode >= 500,

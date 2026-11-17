@@ -124,10 +124,7 @@ class SyncService {
   DateTime? _rateLimitPauseUntil;
   String? _lastKnownToken;
 
-  SyncService({
-    required this.client,
-    required this.prefs,
-  }) {
+  SyncService({required this.client, required this.prefs}) {
     _loadState();
   }
 
@@ -135,16 +132,19 @@ class SyncService {
   List<SyncOperation> get pendingOperations => List.unmodifiable(_queue);
 
   /// Read-only snapshot of confirmed synchronized observation IDs.
-  Set<String> get syncedObservationIds => Set.unmodifiable(_syncedObservationIds);
+  Set<String> get syncedObservationIds =>
+      Set.unmodifiable(_syncedObservationIds);
 
   /// Read-only snapshot of observations currently transmitting in flight.
-  Set<String> get inFlightObservationIds => Set.unmodifiable(_inFlightObservationIds);
+  Set<String> get inFlightObservationIds =>
+      Set.unmodifiable(_inFlightObservationIds);
 
   /// Active rate limit pause timestamp, if currently paused.
   DateTime? get rateLimitPauseUntil => _rateLimitPauseUntil;
 
   /// Check whether an observation is actively in flight across the network.
-  bool isInFlight(String observationId) => _inFlightObservationIds.contains(observationId);
+  bool isInFlight(String observationId) =>
+      _inFlightObservationIds.contains(observationId);
 
   /// Load persisted outbox queue, synced IDs, deleted tombstones, and rate limit state.
   void _loadState() {
@@ -154,7 +154,9 @@ class SyncService {
         final list = jsonDecode(rawQueue) as List<dynamic>;
         _queue.clear();
         for (final item in list) {
-          _queue.add(SyncOperation.fromJson(Map<String, dynamic>.from(item as Map)));
+          _queue.add(
+            SyncOperation.fromJson(Map<String, dynamic>.from(item as Map)),
+          );
         }
       }
 
@@ -210,26 +212,35 @@ class SyncService {
 
   /// Persist locally deleted observation IDs (tombstones) to SharedPreferences.
   Future<void> _saveDeletedIds() async {
-    await prefs.setStringList(deletedStorageKey, _locallyDeletedObservationIds.toList());
+    await prefs.setStringList(
+      deletedStorageKey,
+      _locallyDeletedObservationIds.toList(),
+    );
   }
 
   /// Persist rate limit pause timestamp.
   Future<void> _saveRateLimitPause() async {
-    if (_rateLimitPauseUntil != null && _rateLimitPauseUntil!.isAfter(DateTime.now())) {
-      await prefs.setString(rateLimitPauseKey, _rateLimitPauseUntil!.toIso8601String());
+    if (_rateLimitPauseUntil != null &&
+        _rateLimitPauseUntil!.isAfter(DateTime.now())) {
+      await prefs.setString(
+        rateLimitPauseKey,
+        _rateLimitPauseUntil!.toIso8601String(),
+      );
     } else {
       await prefs.remove(rateLimitPauseKey);
     }
   }
 
   void _triggerQueueProcessing() {
-    unawaited(processQueue().catchError((e) {
-      return const SyncProcessResult(
-        processedCount: 0,
-        remainingCount: 0,
-        hasNetworkError: true,
-      );
-    }));
+    unawaited(
+      processQueue().catchError((e) {
+        return const SyncProcessResult(
+          processedCount: 0,
+          remainingCount: 0,
+          hasNetworkError: true,
+        );
+      }),
+    );
   }
 
   /// Reconcile local discoveries against persisted outbox queue and synced IDs.
@@ -306,7 +317,9 @@ class SyncService {
         _queue.add(op);
       } else {
         // Compaction: If non-in-flight op exists, replace it
-        _queue.removeWhere((existing) => existing.observationId == discovery.id);
+        _queue.removeWhere(
+          (existing) => existing.observationId == discovery.id,
+        );
         _queue.add(op);
       }
       _locallyDeletedObservationIds.remove(discovery.id);
@@ -336,7 +349,9 @@ class SyncService {
         // In-flight protection: Do NOT mutate in-flight payload.
         // Check if there is already a non-in-flight pending UPDATE queued after it:
         final pendingUpdateIdx = _queue.lastIndexWhere(
-          (op) => op.observationId == discovery.id && op.type == SyncOperationType.update,
+          (op) =>
+              op.observationId == discovery.id &&
+              op.type == SyncOperationType.update,
         );
         if (pendingUpdateIdx >= 0) {
           final updateOp = _queue[pendingUpdateIdx];
@@ -346,14 +361,16 @@ class SyncService {
           }
         } else {
           // Append new UPDATE to run after in-flight completes
-          _queue.add(SyncOperation(
-            opId: generateUuidV4(),
-            observationId: discovery.id,
-            type: SyncOperationType.update,
-            payload: updatePayload,
-            createdAt: DateTime.now().toIso8601String(),
-            identityToken: token,
-          ));
+          _queue.add(
+            SyncOperation(
+              opId: generateUuidV4(),
+              observationId: discovery.id,
+              type: SyncOperationType.update,
+              payload: updatePayload,
+              createdAt: DateTime.now().toIso8601String(),
+              identityToken: token,
+            ),
+          );
         }
         await _saveQueue();
         return;
@@ -361,7 +378,9 @@ class SyncService {
 
       // Offline Compaction Rule 1: If pending non-in-flight CREATE exists, merge payload
       final pendingCreateIdx = _queue.indexWhere(
-        (op) => op.observationId == discovery.id && op.type == SyncOperationType.create,
+        (op) =>
+            op.observationId == discovery.id &&
+            op.type == SyncOperationType.create,
       );
       if (pendingCreateIdx >= 0) {
         final createOp = _queue[pendingCreateIdx];
@@ -375,7 +394,9 @@ class SyncService {
 
       // Offline Compaction Rule 2: If pending non-in-flight UPDATE exists, merge
       final pendingUpdateIdx = _queue.indexWhere(
-        (op) => op.observationId == discovery.id && op.type == SyncOperationType.update,
+        (op) =>
+            op.observationId == discovery.id &&
+            op.type == SyncOperationType.update,
       );
       if (pendingUpdateIdx >= 0) {
         final updateOp = _queue[pendingUpdateIdx];
@@ -388,14 +409,16 @@ class SyncService {
       }
 
       // Otherwise append new UPDATE
-      _queue.add(SyncOperation(
-        opId: generateUuidV4(),
-        observationId: discovery.id,
-        type: SyncOperationType.update,
-        payload: updatePayload,
-        createdAt: DateTime.now().toIso8601String(),
-        identityToken: token,
-      ));
+      _queue.add(
+        SyncOperation(
+          opId: generateUuidV4(),
+          observationId: discovery.id,
+          type: SyncOperationType.update,
+          payload: updatePayload,
+          createdAt: DateTime.now().toIso8601String(),
+          identityToken: token,
+        ),
+      );
       await _saveQueue();
     });
 
@@ -420,9 +443,10 @@ class SyncService {
         // Do NOT cancel the in-flight operation.
         // Remove only non-in-flight pending UPDATEs (since deletion supersedes updates)
         _queue.removeWhere(
-          (op) => op.observationId == observationId &&
-                  op.type == SyncOperationType.update &&
-                  !_inFlightObservationIds.contains(op.observationId),
+          (op) =>
+              op.observationId == observationId &&
+              op.type == SyncOperationType.update &&
+              !_inFlightObservationIds.contains(op.observationId),
         );
         final op = SyncOperation(
           opId: generateUuidV4(),
@@ -441,7 +465,9 @@ class SyncService {
 
       // Offline Compaction Rule 3: If non-in-flight CREATE is pending, cancel it entirely!
       final hasPendingCreate = _queue.any(
-        (op) => op.observationId == observationId && op.type == SyncOperationType.create,
+        (op) =>
+            op.observationId == observationId &&
+            op.type == SyncOperationType.create,
       );
       if (hasPendingCreate) {
         _queue.removeWhere((op) => op.observationId == observationId);
@@ -453,7 +479,9 @@ class SyncService {
 
       // Offline Compaction Rule 4: If non-in-flight UPDATE is pending, remove it in favor of DELETE
       _queue.removeWhere(
-        (op) => op.observationId == observationId && op.type == SyncOperationType.update,
+        (op) =>
+            op.observationId == observationId &&
+            op.type == SyncOperationType.update,
       );
 
       // Queue DELETE operation
@@ -540,7 +568,9 @@ class SyncService {
 
     try {
       // Refresh identity token reference
-      final currentToken = client.currentToken ?? await client.getDeviceToken().catchError((_) => '');
+      final currentToken =
+          client.currentToken ??
+          await client.getDeviceToken().catchError((_) => '');
       if (currentToken.isNotEmpty) {
         if (_lastKnownToken != null && _lastKnownToken != currentToken) {
           debugPrint('SyncService: Anonymous identity refreshed.');
@@ -561,8 +591,13 @@ class SyncService {
         if (op.attemptCount > 0 && op.lastAttemptAt != null) {
           final lastAttempt = DateTime.tryParse(op.lastAttemptAt!);
           if (lastAttempt != null) {
-            final backoffSeconds = min(300, (2 * pow(2, op.attemptCount - 1)).toInt());
-            final nextAllowedAttempt = lastAttempt.add(Duration(seconds: backoffSeconds));
+            final backoffSeconds = min(
+              300,
+              (2 * pow(2, op.attemptCount - 1)).toInt(),
+            );
+            final nextAllowedAttempt = lastAttempt.add(
+              Duration(seconds: backoffSeconds),
+            );
             if (DateTime.now().isBefore(nextAllowedAttempt)) {
               continue;
             }
@@ -570,13 +605,17 @@ class SyncService {
         }
 
         // High Fix 4: Identity check - If token is recorded and differs from current token, server anti-IDOR will block access
-        final bool identityChanged = op.identityToken != null &&
+        final bool identityChanged =
+            op.identityToken != null &&
             currentToken.isNotEmpty &&
             op.identityToken != currentToken;
 
-        if (identityChanged && (op.type == SyncOperationType.update || op.type == SyncOperationType.delete)) {
+        if (identityChanged &&
+            (op.type == SyncOperationType.update ||
+                op.type == SyncOperationType.delete)) {
           op.permanentError = true;
-          op.lastError = 'Identity mismatch: operation belongs to prior anonymous identity. '
+          op.lastError =
+              'Identity mismatch: operation belongs to prior anonymous identity. '
               'Server anti-IDOR prevents access with new identity.';
           await _synchronizedQueue(() async {
             await _saveQueue();
@@ -614,14 +653,19 @@ class SyncService {
             // Priority 4: Rate limit handling
             rateLimited = true;
             networkErrorEncountered = true;
-            final pauseSec = e.retryAfterSeconds ?? max(60, (2 * pow(2, op.attemptCount - 1)).toInt());
-            _rateLimitPauseUntil = DateTime.now().add(Duration(seconds: pauseSec));
+            final pauseSec =
+                e.retryAfterSeconds ??
+                max(60, (2 * pow(2, op.attemptCount - 1)).toInt());
+            _rateLimitPauseUntil = DateTime.now().add(
+              Duration(seconds: pauseSec),
+            );
             await _synchronizedQueue(() async {
               await _saveRateLimitPause();
               await _saveQueue();
             });
             break; // Stop immediately to prevent hammering
-          } else if (e.isNetworkError || (e.statusCode != null && e.statusCode! >= 500)) {
+          } else if (e.isNetworkError ||
+              (e.statusCode != null && e.statusCode! >= 500)) {
             networkErrorEncountered = true;
 
             await _synchronizedQueue(() async {
@@ -630,11 +674,14 @@ class SyncService {
                 // NEVER remove a queued DELETE! Both CREATE (for retry/409 reconciliation) and
                 // DELETE (to clean up the server record) must be preserved in queue order.
                 final subsequentUpdateIdx = _queue.indexWhere(
-                  (item) => item.observationId == op.observationId && item.type == SyncOperationType.update,
+                  (item) =>
+                      item.observationId == op.observationId &&
+                      item.type == SyncOperationType.update,
                 );
                 if (subsequentUpdateIdx >= 0) {
                   final updateOp = _queue[subsequentUpdateIdx];
-                  op.payload['note'] = updateOp.payload['note'] ?? op.payload['note'];
+                  op.payload['note'] =
+                      updateOp.payload['note'] ?? op.payload['note'];
                   if (updateOp.payload['district'] != null) {
                     op.payload['district'] = updateOp.payload['district'];
                   }
@@ -642,11 +689,15 @@ class SyncService {
                 }
               } else if (op.type == SyncOperationType.update) {
                 final hasSubsequentDelete = _queue.any(
-                  (item) => item.observationId == op.observationId && item.type == SyncOperationType.delete,
+                  (item) =>
+                      item.observationId == op.observationId &&
+                      item.type == SyncOperationType.delete,
                 );
                 if (hasSubsequentDelete) {
                   _queue.removeWhere(
-                    (item) => item.observationId == op.observationId && item.type == SyncOperationType.update,
+                    (item) =>
+                        item.observationId == op.observationId &&
+                        item.type == SyncOperationType.update,
                   );
                 }
               }
@@ -691,7 +742,10 @@ class SyncService {
     } on FloraApiException catch (e) {
       if (e.statusCode == 409) {
         // Priority 5: Strengthened 409 conflict verification & reconciliation
-        final verification = await _verifyExistingObservation(op.observationId, op.payload);
+        final verification = await _verifyExistingObservation(
+          op.observationId,
+          op.payload,
+        );
         if (verification.isOwnerAndMatched) {
           _syncedObservationIds.add(op.observationId);
           await _saveSyncedIds();
@@ -699,21 +753,24 @@ class SyncService {
           if (verification.needsContentUpdate) {
             final updatePayload = <String, dynamic>{
               'note': op.payload['note'] ?? '',
-              if (op.payload['district'] != null) 'district': op.payload['district'],
+              if (op.payload['district'] != null)
+                'district': op.payload['district'],
             };
             try {
               await client.updateObservation(op.observationId, updatePayload);
             } catch (_) {
               // If inline update fails, enqueue UPDATE so it will be retried
               await _synchronizedQueue(() async {
-                _queue.add(SyncOperation(
-                  opId: generateUuidV4(),
-                  observationId: op.observationId,
-                  type: SyncOperationType.update,
-                  payload: updatePayload,
-                  createdAt: DateTime.now().toIso8601String(),
-                  identityToken: client.currentToken ?? _lastKnownToken,
-                ));
+                _queue.add(
+                  SyncOperation(
+                    opId: generateUuidV4(),
+                    observationId: op.observationId,
+                    type: SyncOperationType.update,
+                    payload: updatePayload,
+                    createdAt: DateTime.now().toIso8601String(),
+                    identityToken: client.currentToken ?? _lastKnownToken,
+                  ),
+                );
                 await _saveQueue();
               });
             }
@@ -746,7 +803,10 @@ class SyncService {
     }
   }
 
-  Future<void> _executeDelete(SyncOperation op, {bool identityChanged = false}) async {
+  Future<void> _executeDelete(
+    SyncOperation op, {
+    bool identityChanged = false,
+  }) async {
     _inFlightObservationIds.add(op.observationId);
     try {
       await client.deleteObservation(op.observationId);
@@ -756,7 +816,8 @@ class SyncService {
       if (e.statusCode == 404) {
         if (identityChanged) {
           op.permanentError = true;
-          op.lastError = 'Identity mismatch on DELETE: observation not accessible under current identity (HTTP 404).';
+          op.lastError =
+              'Identity mismatch on DELETE: observation not accessible under current identity (HTTP 404).';
           rethrow;
         }
         _syncedObservationIds.remove(op.observationId);
@@ -776,11 +837,13 @@ class SyncService {
   ) async {
     try {
       final obs = await client.getObservation(obsId);
-      final expectedFlowerId = payload['flowerId'] ?? payload['plantId'] ?? payload['flower_id'];
+      final expectedFlowerId =
+          payload['flowerId'] ?? payload['plantId'] ?? payload['flower_id'];
       if (obs.flowerId != expectedFlowerId && obs.plantId != expectedFlowerId) {
         return ConflictVerificationResult(
           isOwnerAndMatched: false,
-          mismatchReason: 'Flower ID mismatch: expected $expectedFlowerId, server had ${obs.flowerId}',
+          mismatchReason:
+              'Flower ID mismatch: expected $expectedFlowerId, server had ${obs.flowerId}',
         );
       }
 
@@ -788,7 +851,9 @@ class SyncService {
       final clientDistrict = payload['district'] as String?;
       final bool noteDiffers = obs.note.trim() != clientNote.trim();
       final bool districtDiffers =
-          clientDistrict != null && clientDistrict.isNotEmpty && obs.district != clientDistrict;
+          clientDistrict != null &&
+          clientDistrict.isNotEmpty &&
+          obs.district != clientDistrict;
 
       if (noteDiffers || districtDiffers) {
         return const ConflictVerificationResult(
@@ -804,7 +869,8 @@ class SyncService {
     } on FloraApiException catch (e) {
       return ConflictVerificationResult(
         isOwnerAndMatched: false,
-        mismatchReason: 'Observation verification failed with HTTP ${e.statusCode}: ${e.message}',
+        mismatchReason:
+            'Observation verification failed with HTTP ${e.statusCode}: ${e.message}',
       );
     } catch (e) {
       return ConflictVerificationResult(

@@ -56,7 +56,7 @@ void main() {
             'catalogue_matched': true,
             'flower_id': 'periwinkle',
             'plant_id': 'periwinkle',
-          }
+          },
         ],
         'candidate_ids': ['hibiscus', 'periwinkle'],
         'top_confidence_level': 'high',
@@ -95,10 +95,7 @@ void main() {
         'outcome': 'no_match',
         'candidates': <Map<String, dynamic>>[],
         'candidate_ids': <String>[],
-        'provider': {
-          'provider_id': 'plantnet',
-          'is_demo': false,
-        },
+        'provider': {'provider_id': 'plantnet', 'is_demo': false},
         'safety_disclaimer': 'Safety notice',
       };
 
@@ -120,7 +117,7 @@ void main() {
             'confidence_level': 'moderate',
             'catalogue_matched': true,
             'flower_id': 'hibiscus',
-          }
+          },
         ],
         'candidate_ids': ['hibiscus'],
         'provider': {
@@ -140,18 +137,69 @@ void main() {
   });
 
   group('Anonymous Authentication & Token Persistence', () {
-    test('bootstraps anonymous device token and persists to SharedPreferences', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
+    test(
+      'bootstraps anonymous device token and persists to SharedPreferences',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
 
-      int callCount = 0;
-      final mockClient = MockClient((request) async {
-        if (request.url.path == '/api/v1/auth/anonymous' && request.method == 'POST') {
+        int callCount = 0;
+        final mockClient = MockClient((request) async {
+          if (request.url.path == '/api/v1/auth/anonymous' &&
+              request.method == 'POST') {
+            callCount++;
+            return http.Response(
+              jsonEncode({
+                'user_id': '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+                'device_token':
+                    'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899',
+                'token_type': 'bearer',
+                'role': 'guest',
+                'is_anonymous': true,
+                'created_at': '2026-11-16T20:00:00Z',
+              }),
+              201,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response('Not Found', 404);
+        });
+
+        final client = FloraApiClient(
+          httpClient: mockClient,
+          baseUrl: 'http://127.0.0.1:8000',
+          prefs: prefs,
+        );
+
+        final token1 = await client.getDeviceToken();
+        expect(
+          token1,
+          'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899',
+        );
+        expect(callCount, 1);
+        expect(prefs.getString(FloraApiClient.tokenStorageKey), token1);
+
+        // Subsequent call uses stored token and makes no HTTP call
+        final token2 = await client.getDeviceToken();
+        expect(token2, token1);
+        expect(callCount, 1);
+      },
+    );
+
+    test(
+      'concurrent getDeviceToken calls trigger only one HTTP request',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+
+        int callCount = 0;
+        final mockClient = MockClient((request) async {
           callCount++;
+          await Future<void>.delayed(const Duration(milliseconds: 50));
           return http.Response(
             jsonEncode({
               'user_id': '3fa85f64-5717-4562-b3fc-2c963f66afa6',
-              'device_token': 'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899',
+              'device_token': 'unique-token-test',
               'token_type': 'bearer',
               'role': 'guest',
               'is_anonymous': true,
@@ -160,135 +208,102 @@ void main() {
             201,
             headers: {'content-type': 'application/json'},
           );
-        }
-        return http.Response('Not Found', 404);
-      });
+        });
 
-      final client = FloraApiClient(
-        httpClient: mockClient,
-        baseUrl: 'http://127.0.0.1:8000',
-        prefs: prefs,
-      );
-
-      final token1 = await client.getDeviceToken();
-      expect(token1, 'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899');
-      expect(callCount, 1);
-      expect(prefs.getString(FloraApiClient.tokenStorageKey), token1);
-
-      // Subsequent call uses stored token and makes no HTTP call
-      final token2 = await client.getDeviceToken();
-      expect(token2, token1);
-      expect(callCount, 1);
-    });
-
-    test('concurrent getDeviceToken calls trigger only one HTTP request', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-
-      int callCount = 0;
-      final mockClient = MockClient((request) async {
-        callCount++;
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-        return http.Response(
-          jsonEncode({
-            'user_id': '3fa85f64-5717-4562-b3fc-2c963f66afa6',
-            'device_token': 'unique-token-test',
-            'token_type': 'bearer',
-            'role': 'guest',
-            'is_anonymous': true,
-            'created_at': '2026-11-16T20:00:00Z',
-          }),
-          201,
-          headers: {'content-type': 'application/json'},
+        final client = FloraApiClient(
+          httpClient: mockClient,
+          baseUrl: 'http://127.0.0.1:8000',
+          prefs: prefs,
         );
-      });
 
-      final client = FloraApiClient(
-        httpClient: mockClient,
-        baseUrl: 'http://127.0.0.1:8000',
-        prefs: prefs,
-      );
+        final results = await Future.wait([
+          client.getDeviceToken(),
+          client.getDeviceToken(),
+          client.getDeviceToken(),
+        ]);
 
-      final results = await Future.wait([
-        client.getDeviceToken(),
-        client.getDeviceToken(),
-        client.getDeviceToken(),
-      ]);
+        expect(callCount, 1);
+        expect(results[0], 'unique-token-test');
+        expect(results[1], 'unique-token-test');
+        expect(results[2], 'unique-token-test');
+      },
+    );
 
-      expect(callCount, 1);
-      expect(results[0], 'unique-token-test');
-      expect(results[1], 'unique-token-test');
-      expect(results[2], 'unique-token-test');
-    });
+    test(
+      'reloads existing token from SharedPreferences on initialization',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          FloraApiClient.tokenStorageKey: 'previously-saved-token-xyz',
+        });
+        final prefs = await SharedPreferences.getInstance();
 
-    test('reloads existing token from SharedPreferences on initialization', () async {
-      SharedPreferences.setMockInitialValues({
-        FloraApiClient.tokenStorageKey: 'previously-saved-token-xyz',
-      });
-      final prefs = await SharedPreferences.getInstance();
+        int callCount = 0;
+        final mockClient = MockClient((request) async {
+          callCount++;
+          return http.Response('Error', 500);
+        });
 
-      int callCount = 0;
-      final mockClient = MockClient((request) async {
-        callCount++;
-        return http.Response('Error', 500);
-      });
+        final client = FloraApiClient(
+          httpClient: mockClient,
+          baseUrl: 'http://127.0.0.1:8000',
+          prefs: prefs,
+        );
 
-      final client = FloraApiClient(
-        httpClient: mockClient,
-        baseUrl: 'http://127.0.0.1:8000',
-        prefs: prefs,
-      );
-
-      final token = await client.getDeviceToken();
-      expect(token, 'previously-saved-token-xyz');
-      expect(callCount, 0); // Zero HTTP calls made
-    });
+        final token = await client.getDeviceToken();
+        expect(token, 'previously-saved-token-xyz');
+        expect(callCount, 0); // Zero HTTP calls made
+      },
+    );
   });
 
   group('HTTP Errors and Exception Handling', () {
-    test('handles 400 Bad Request with structured IdentificationErrorResponse', () async {
-      SharedPreferences.setMockInitialValues({
-        FloraApiClient.tokenStorageKey: 'valid-test-token',
-      });
-      final prefs = await SharedPreferences.getInstance();
+    test(
+      'handles 400 Bad Request with structured IdentificationErrorResponse',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          FloraApiClient.tokenStorageKey: 'valid-test-token',
+        });
+        final prefs = await SharedPreferences.getInstance();
 
-      final mockClient = MockClient((request) async {
-        return http.Response(
-          jsonEncode({
-            'detail': {
-              'error_code': 'image_empty',
-              'message': 'Uploaded image file contains zero bytes.',
-              'retryable': false,
-              'safety_disclaimer': 'Disclaimer statement.',
-            }
-          }),
-          400,
-          headers: {'content-type': 'application/json'},
+        final mockClient = MockClient((request) async {
+          return http.Response(
+            jsonEncode({
+              'detail': {
+                'error_code': 'image_empty',
+                'message': 'Uploaded image file contains zero bytes.',
+                'retryable': false,
+                'safety_disclaimer': 'Disclaimer statement.',
+              },
+            }),
+            400,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+
+        final client = FloraApiClient(
+          httpClient: mockClient,
+          baseUrl: 'http://127.0.0.1:8000',
+          prefs: prefs,
         );
-      });
 
-      final client = FloraApiClient(
-        httpClient: mockClient,
-        baseUrl: 'http://127.0.0.1:8000',
-        prefs: prefs,
-      );
+        // Create a temporary file
+        final tempDir = Directory.systemTemp.createTempSync('floramw_test_');
+        final tempFile = File('${tempDir.path}/test.jpg')
+          ..writeAsStringSync('dummy');
 
-      // Create a temporary file
-      final tempDir = Directory.systemTemp.createTempSync('floramw_test_');
-      final tempFile = File('${tempDir.path}/test.jpg')..writeAsStringSync('dummy');
-
-      try {
-        await client.identifyPlant(photoPath: tempFile.path);
-        fail('Expected FloraApiException');
-      } on FloraApiException catch (e) {
-        expect(e.statusCode, 400);
-        expect(e.errorCode, 'image_empty');
-        expect(e.message, contains('zero bytes'));
-        expect(e.retryable, isFalse);
-      } finally {
-        tempDir.deleteSync(recursive: true);
-      }
-    });
+        try {
+          await client.identifyPlant(photoPath: tempFile.path);
+          fail('Expected FloraApiException');
+        } on FloraApiException catch (e) {
+          expect(e.statusCode, 400);
+          expect(e.errorCode, 'image_empty');
+          expect(e.message, contains('zero bytes'));
+          expect(e.retryable, isFalse);
+        } finally {
+          tempDir.deleteSync(recursive: true);
+        }
+      },
+    );
 
     test('handles 503 Provider Unavailable with retryable flag', () async {
       SharedPreferences.setMockInitialValues({
@@ -303,7 +318,7 @@ void main() {
               'error_code': 'provider_unavailable',
               'message': 'Provider is temporarily unreachable.',
               'retryable': true,
-            }
+            },
           }),
           503,
           headers: {'content-type': 'application/json'},
@@ -317,7 +332,8 @@ void main() {
       );
 
       final tempDir = Directory.systemTemp.createTempSync('floramw_test_');
-      final tempFile = File('${tempDir.path}/test.jpg')..writeAsStringSync('dummy');
+      final tempFile = File('${tempDir.path}/test.jpg')
+        ..writeAsStringSync('dummy');
 
       try {
         await client.identifyPlant(photoPath: tempFile.path);
@@ -385,14 +401,18 @@ void main() {
       );
 
       final tempDir = Directory.systemTemp.createTempSync('floramw_test_');
-      final tempFile = File('${tempDir.path}/test.jpg')..writeAsStringSync('dummy');
+      final tempFile = File('${tempDir.path}/test.jpg')
+        ..writeAsStringSync('dummy');
 
       try {
         final res = await client.identifyPlant(photoPath: tempFile.path);
         expect(res.candidateIds, ['hibiscus']);
         expect(identifyAttempts, 2);
         expect(authAttempts, 1);
-        expect(prefs.getString(FloraApiClient.tokenStorageKey), 'fresh-token-12345');
+        expect(
+          prefs.getString(FloraApiClient.tokenStorageKey),
+          'fresh-token-12345',
+        );
       } finally {
         tempDir.deleteSync(recursive: true);
       }
@@ -411,7 +431,10 @@ void main() {
       );
       final service = ApiIdentificationService(client: client);
 
-      final result = await service.identify('any_path.jpg', DemoOutcome.noMatch);
+      final result = await service.identify(
+        'any_path.jpg',
+        DemoOutcome.noMatch,
+      );
       expect(result.candidateIds, isEmpty);
       expect(result.isDemo, isTrue);
     });
@@ -452,59 +475,66 @@ void main() {
       expect(result.isDemo, isTrue);
     });
 
-    test('maps live API response to IdentificationResult with genuine/demo flag', () async {
-      SharedPreferences.setMockInitialValues({
-        FloraApiClient.tokenStorageKey: 'mock-valid-token',
-      });
-      final prefs = await SharedPreferences.getInstance();
+    test(
+      'maps live API response to IdentificationResult with genuine/demo flag',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          FloraApiClient.tokenStorageKey: 'mock-valid-token',
+        });
+        final prefs = await SharedPreferences.getInstance();
 
-      final mockClient = MockClient((request) async {
-        if (request.url.path == '/api/v1/identifications') {
-          return http.Response(
-            jsonEncode({
-              'outcome': 'candidates',
-              'candidates': [
-                {
-                  'scientific_name': 'Hibiscus rosa-sinensis',
-                  'common_names': [],
-                  'confidence': 0.95,
-                  'confidence_level': 'high',
-                  'catalogue_matched': true,
-                  'flower_id': 'hibiscus',
-                }
-              ],
-              'candidate_ids': ['hibiscus'],
-              'provider': {
-                'provider_id': 'plantnet',
-                'model_version': 'v2.0',
-                'is_demo': false,
-              },
-              'safety_disclaimer': 'Safe',
-            }),
-            200,
+        final mockClient = MockClient((request) async {
+          if (request.url.path == '/api/v1/identifications') {
+            return http.Response(
+              jsonEncode({
+                'outcome': 'candidates',
+                'candidates': [
+                  {
+                    'scientific_name': 'Hibiscus rosa-sinensis',
+                    'common_names': [],
+                    'confidence': 0.95,
+                    'confidence_level': 'high',
+                    'catalogue_matched': true,
+                    'flower_id': 'hibiscus',
+                  },
+                ],
+                'candidate_ids': ['hibiscus'],
+                'provider': {
+                  'provider_id': 'plantnet',
+                  'model_version': 'v2.0',
+                  'is_demo': false,
+                },
+                'safety_disclaimer': 'Safe',
+              }),
+              200,
+            );
+          }
+          return http.Response('Not Found', 404);
+        });
+
+        final client = FloraApiClient(
+          httpClient: mockClient,
+          baseUrl: 'http://127.0.0.1:8000',
+          prefs: prefs,
+        );
+        final service = ApiIdentificationService(client: client);
+
+        final tempDir = Directory.systemTemp.createTempSync('floramw_test_');
+        final tempFile = File('${tempDir.path}/hibiscus.jpg')
+          ..writeAsStringSync('bytes');
+
+        try {
+          final result = await service.identify(
+            tempFile.path,
+            DemoOutcome.matches,
           );
+          expect(result.candidateIds, ['hibiscus']);
+          expect(result.isDemo, isFalse);
+        } finally {
+          tempDir.deleteSync(recursive: true);
         }
-        return http.Response('Not Found', 404);
-      });
-
-      final client = FloraApiClient(
-        httpClient: mockClient,
-        baseUrl: 'http://127.0.0.1:8000',
-        prefs: prefs,
-      );
-      final service = ApiIdentificationService(client: client);
-
-      final tempDir = Directory.systemTemp.createTempSync('floramw_test_');
-      final tempFile = File('${tempDir.path}/hibiscus.jpg')..writeAsStringSync('bytes');
-
-      try {
-        final result = await service.identify(tempFile.path, DemoOutcome.matches);
-        expect(result.candidateIds, ['hibiscus']);
-        expect(result.isDemo, isFalse);
-      } finally {
-        tempDir.deleteSync(recursive: true);
-      }
-    });
+      },
+    );
   });
 
   group('Catalogue Retrieval (getFlowers)', () {
@@ -546,7 +576,7 @@ void main() {
                   'symbol': '🌸',
                   'description': 'A medicinal flower',
                   'photo_asset': 'assets/plants/periwinkle.jpg',
-                }
+                },
               ],
             }),
             200,
@@ -571,48 +601,51 @@ void main() {
       expect(flowers.first.sources, isNotEmpty);
     });
 
-    test('encodes search, district, category and sorting parameters correctly', () async {
-      SharedPreferences.setMockInitialValues({
-        FloraApiClient.tokenStorageKey: 'mock-valid-token',
-      });
-      final prefs = await SharedPreferences.getInstance();
+    test(
+      'encodes search, district, category and sorting parameters correctly',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          FloraApiClient.tokenStorageKey: 'mock-valid-token',
+        });
+        final prefs = await SharedPreferences.getInstance();
 
-      final mockClient = MockClient((request) async {
-        if (request.url.path == '/api/v1/flowers') {
-          expect(request.url.queryParameters['q'], 'munda');
-          expect(request.url.queryParameters['district'], 'Zomba');
-          expect(request.url.queryParameters['category'], 'Garden flowers');
-          expect(request.url.queryParameters['sort'], 'name_desc');
-          return http.Response(
-            jsonEncode({
-              'total': 0,
-              'page': 1,
-              'limit': 20,
-              'total_pages': 1,
-              'has_more': false,
-              'items': [],
-            }),
-            200,
-          );
-        }
-        return http.Response('Not Found', 404);
-      });
+        final mockClient = MockClient((request) async {
+          if (request.url.path == '/api/v1/flowers') {
+            expect(request.url.queryParameters['q'], 'munda');
+            expect(request.url.queryParameters['district'], 'Zomba');
+            expect(request.url.queryParameters['category'], 'Garden flowers');
+            expect(request.url.queryParameters['sort'], 'name_desc');
+            return http.Response(
+              jsonEncode({
+                'total': 0,
+                'page': 1,
+                'limit': 20,
+                'total_pages': 1,
+                'has_more': false,
+                'items': [],
+              }),
+              200,
+            );
+          }
+          return http.Response('Not Found', 404);
+        });
 
-      final client = FloraApiClient(
-        httpClient: mockClient,
-        baseUrl: 'http://127.0.0.1:8000',
-        prefs: prefs,
-      );
+        final client = FloraApiClient(
+          httpClient: mockClient,
+          baseUrl: 'http://127.0.0.1:8000',
+          prefs: prefs,
+        );
 
-      final flowers = await client.getFlowers(
-        search: 'munda',
-        district: 'Zomba',
-        category: 'Garden flowers',
-        sortBy: 'name_desc',
-        limit: 20,
-      );
-      expect(flowers, isEmpty);
-    });
+        final flowers = await client.getFlowers(
+          search: 'munda',
+          district: 'Zomba',
+          category: 'Garden flowers',
+          sortBy: 'name_desc',
+          limit: 20,
+        );
+        expect(flowers, isEmpty);
+      },
+    );
 
     test('handles server error and throws FloraApiException', () async {
       SharedPreferences.setMockInitialValues({
@@ -652,7 +685,8 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
 
       final mockClient = MockClient((request) async {
-        if (request.url.path == '/api/v1/flowers/reports' && request.method == 'POST') {
+        if (request.url.path == '/api/v1/flowers/reports' &&
+            request.method == 'POST') {
           expect(request.headers['Authorization'], 'Bearer mock-valid-token');
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           expect(body['flower_id'], 'hibiscus');
@@ -712,51 +746,59 @@ void main() {
           details: 'Valid details over 5 chars',
         ),
         throwsA(
-          isA<FloraApiException>().having((e) => e.statusCode, 'statusCode', 400),
+          isA<FloraApiException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            400,
+          ),
         ),
       );
 
       // Details too short (<5 chars)
       expect(
-        () => client.submitReport(
-          topic: 'Valid topic',
-          details: 'Bad',
-        ),
+        () => client.submitReport(topic: 'Valid topic', details: 'Bad'),
         throwsA(
-          isA<FloraApiException>().having((e) => e.statusCode, 'statusCode', 400),
+          isA<FloraApiException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            400,
+          ),
         ),
       );
     });
 
-    test('handles 409 conflict gracefully for idempotent duplicate submissions', () async {
-      SharedPreferences.setMockInitialValues({
-        FloraApiClient.tokenStorageKey: 'mock-valid-token',
-      });
-      final prefs = await SharedPreferences.getInstance();
+    test(
+      'handles 409 conflict gracefully for idempotent duplicate submissions',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          FloraApiClient.tokenStorageKey: 'mock-valid-token',
+        });
+        final prefs = await SharedPreferences.getInstance();
 
-      final mockClient = MockClient((request) async {
-        return http.Response(
-          jsonEncode({
-            'id': 'report-uuid-existing',
-            'status': 'submitted',
-            'message': 'Report with this ID already exists',
-          }),
-          409,
+        final mockClient = MockClient((request) async {
+          return http.Response(
+            jsonEncode({
+              'id': 'report-uuid-existing',
+              'status': 'submitted',
+              'message': 'Report with this ID already exists',
+            }),
+            409,
+          );
+        });
+
+        final client = FloraApiClient(
+          httpClient: mockClient,
+          baseUrl: 'http://127.0.0.1:8000',
+          prefs: prefs,
         );
-      });
 
-      final client = FloraApiClient(
-        httpClient: mockClient,
-        baseUrl: 'http://127.0.0.1:8000',
-        prefs: prefs,
-      );
-
-      final result = await client.submitReport(
-        id: 'report-uuid-existing',
-        topic: 'Plant care',
-        details: 'Duplicate submission test',
-      );
-      expect(result['id'], 'report-uuid-existing');
-    });
+        final result = await client.submitReport(
+          id: 'report-uuid-existing',
+          topic: 'Plant care',
+          details: 'Duplicate submission test',
+        );
+        expect(result['id'], 'report-uuid-existing');
+      },
+    );
   });
 }
