@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'localization.dart';
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,8 @@ import 'screens/profile.dart';
 import 'screens/identify.dart';
 import 'screens/garden.dart';
 import 'screens/settings.dart';
+import 'services/api_client.dart';
+import 'services/sync_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,7 +48,12 @@ class _BootstrapState extends State<Bootstrap> {
     try {
       await TranslationCatalog.load();
       final prefs = await SharedPreferences.getInstance();
-      if (mounted) setState(() => store = AppStore(prefs));
+      final client = FloraApiClient(prefs: prefs);
+      final syncService = SyncService(client: client, prefs: prefs);
+      final appStore = AppStore(prefs, syncService: syncService);
+      await syncService.reconcileStartup(history: appStore.history);
+      unawaited(syncService.processQueue());
+      if (mounted) setState(() => store = appStore);
     } catch (_) {
       if (mounted) setState(() => failed = true);
     }
@@ -324,6 +332,16 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int page = 0;
+  late final IdentificationService _identifyService;
+
+  @override
+  void initState() {
+    super.initState();
+    _identifyService = ApiIdentificationService(
+      client: widget.store.syncService?.client ?? FloraApiClient(prefs: widget.store.prefs),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = widget.store;
@@ -351,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
               store: s,
               onIdentify: () => setState(() => page = 1),
             ),
-            IdentifyScreen(store: s, service: DemoIdentificationService()),
+            IdentifyScreen(store: s, service: _identifyService),
             GardenScreen(store: s),
             SettingsScreen(
               store: s,
@@ -412,6 +430,48 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   String query = '', category = 'All plants';
   bool az = true;
   final search = TextEditingController();
+  List<Plant>? _remotePlants;
+  bool _loading = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCatalogue();
+  }
+
+  Future<void> _fetchCatalogue() async {
+    if (_loading) return;
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _errorMessage = null;
+      });
+    }
+    try {
+      final client = widget.store.syncService?.client ??
+          FloraApiClient(prefs: widget.store.prefs);
+      final remote = await client.getFlowers(
+        district: widget.store.district,
+        limit: 100,
+      );
+      if (mounted) {
+        setState(() {
+          _remotePlants = remote;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _errorMessage =
+              'Server catalogue unavailable. Showing local offline reference.';
+          _loading = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     search.dispose();
@@ -420,8 +480,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final source = _remotePlants ?? plants;
     final results =
-        plants
+        source
             .where(
               (p) =>
                   '${p.name} ${p.scientific} ${p.family}'
@@ -446,6 +507,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             '${languageNames[widget.store.language]} selected · Untranslated content appears in English. Translation review pending.',
           ),
         if (widget.store.loadWarning != null) Notice(widget.store.loadWarning!),
+        if (_errorMessage != null && _remotePlants == null)
+          Notice(
+            _errorMessage!,
+            icon: Icons.cloud_off_outlined,
+          ),
         const FloraText(
           'ROOTED IN MALAWI',
           style: TextStyle(

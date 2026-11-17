@@ -7,6 +7,7 @@ import '../localization.dart';
 import 'package:flutter/material.dart';
 
 import '../models.dart';
+import '../services/api_client.dart';
 import '../store.dart';
 import '../ui.dart';
 
@@ -134,6 +135,8 @@ class _ReportScreenState extends State<ReportScreen> {
   final source = TextEditingController();
   String category = 'Identification';
   bool saving = false;
+  bool submitting = false;
+
   @override
   void dispose() {
     details.dispose();
@@ -150,7 +153,7 @@ class _ReportScreenState extends State<ReportScreen> {
         padding: const EdgeInsets.all(24),
         children: [
           const Notice(
-            'Reports are saved on this device only. A submission service is not connected; no report will be sent.',
+            'Suggest a botanical correction for herbarium review, or save a local draft on this device.',
           ),
           DropdownButtonFormField<String>(
             initialValue: category,
@@ -189,7 +192,59 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
           const SizedBox(height: 20),
           FilledButton(
-            onPressed: saving
+            onPressed: (saving || submitting)
+                ? null
+                : () async {
+                    if (!form.currentState!.validate()) return;
+                    setState(() => submitting = true);
+                    final client = widget.store.syncService?.client ??
+                        FloraApiClient(prefs: widget.store.prefs);
+                    try {
+                      final result = await client.submitReport(
+                        flowerId: widget.plantId,
+                        plantId: widget.plantId,
+                        topic: category,
+                        details: details.text.trim(),
+                        source: source.text.trim(),
+                      );
+                      await widget.store.saveReport({
+                        'id': result['id'],
+                        'plantId': widget.plantId,
+                        'topic': category,
+                        'details': details.text.trim(),
+                        'source': source.text.trim(),
+                        'createdAt': result['created_at'] ??
+                            DateTime.now().toIso8601String(),
+                        'status': 'submitted',
+                      });
+                      if (context.mounted) {
+                        message(context, 'Report submitted successfully.');
+                        Navigator.pop(context);
+                      }
+                    } catch (_) {
+                      await widget.store.saveReport({
+                        'plantId': widget.plantId,
+                        'topic': category,
+                        'details': details.text.trim(),
+                        'source': source.text.trim(),
+                        'createdAt': DateTime.now().toIso8601String(),
+                        'status': 'local-draft',
+                      });
+                      if (context.mounted) {
+                        message(
+                          context,
+                          'Submission failed. Saved as local draft.',
+                        );
+                      }
+                    } finally {
+                      if (mounted) setState(() => submitting = false);
+                    }
+                  },
+            child: FloraText(submitting ? 'Submitting…' : 'Submit report'),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: (saving || submitting)
                 ? null
                 : () async {
                     if (!form.currentState!.validate()) return;

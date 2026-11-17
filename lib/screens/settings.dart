@@ -3,6 +3,7 @@ import '../localization.dart';
 import 'package:flutter/material.dart';
 
 import '../store.dart';
+import '../services/api_client.dart';
 import '../locale_data.dart';
 import '../preferences.dart';
 import 'translations.dart';
@@ -215,7 +216,7 @@ class _DraftsScreenState extends State<DraftsScreen> {
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
         children: [
           const Notice(
-            'Drafts stay on this device. Nothing has been submitted.',
+            'Drafts stay on this device until submitted for botanical review.',
           ),
           if (widget.store.reports.isEmpty)
             const EmptyState(
@@ -228,24 +229,51 @@ class _DraftsScreenState extends State<DraftsScreen> {
               child: ListTile(
                 title: FloraText(r['topic'] as String),
                 subtitle: FloraText(
-                  '${r['details']}\nSource: ${r['source']}\nStatus: local draft',
+                  '${r['details']}\nSource: ${r['source'] ?? 'None'}\nStatus: ${r['status'] == 'submitted' ? 'Submitted' : 'Local draft'}',
                 ),
-                trailing: IconButton(
-                  tooltip: 'Delete draft',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () async {
-                    if (!await confirm(
-                      context,
-                      'Delete draft?',
-                      'This local report will be removed.',
-                    ))
-                      return;
-                    if (context.mounted)
-                      await guarded(context, () async {
-                        widget.store.reports.remove(r);
-                        await widget.store.commit();
-                      });
-                  },
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (r['status'] != 'submitted')
+                      IconButton(
+                        tooltip: 'Submit report',
+                        icon: const Icon(Icons.send_outlined),
+                        onPressed: () async {
+                          final client = widget.store.syncService?.client ??
+                              FloraApiClient(prefs: widget.store.prefs);
+                          await guarded(context, () async {
+                            final result = await client.submitReport(
+                              id: r['id'] as String?,
+                              flowerId: r['plantId'] as String?,
+                              plantId: r['plantId'] as String?,
+                              topic: (r['topic'] as String?) ?? 'Identification',
+                              details: (r['details'] as String?) ?? '',
+                              source: r['source'] as String?,
+                            );
+                            r['status'] = 'submitted';
+                            r['id'] = result['id'];
+                            await widget.store.commit();
+                          }, success: 'Report submitted successfully.');
+                        },
+                      ),
+                    IconButton(
+                      tooltip: 'Delete draft',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () async {
+                        if (!await confirm(
+                          context,
+                          'Delete draft?',
+                          'This local report will be removed.',
+                        ))
+                          return;
+                        if (context.mounted)
+                          await guarded(context, () async {
+                            widget.store.reports.remove(r);
+                            await widget.store.commit();
+                          });
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),

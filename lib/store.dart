@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -7,10 +8,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models.dart';
 import 'locale_data.dart';
+import 'services/sync_service.dart';
 
 class AppStore extends ChangeNotifier {
   final SharedPreferences prefs;
-  AppStore(this.prefs) {
+  SyncService? syncService;
+  AppStore(this.prefs, {this.syncService}) {
     try {
       final raw = prefs.getString('floramw_state');
       final j = raw == null
@@ -137,6 +140,13 @@ class AppStore extends ChangeNotifier {
       notifyListeners();
       rethrow;
     }
+    if (syncService != null) {
+      try {
+        await syncService!.enqueueCreate(record);
+      } catch (e) {
+        debugPrint('AppStore: failed to enqueue CREATE outbox: $e');
+      }
+    }
   }
 
   Future<void> saveNote(Discovery d, String note) async {
@@ -147,6 +157,13 @@ class AppStore extends ChangeNotifier {
     } catch (_) {
       d.note = previous;
       rethrow;
+    }
+    if (syncService != null) {
+      try {
+        await syncService!.enqueueUpdate(d);
+      } catch (e) {
+        debugPrint('AppStore: failed to enqueue UPDATE outbox: $e');
+      }
     }
   }
 
@@ -169,6 +186,13 @@ class AppStore extends ChangeNotifier {
       history.insert(index < 0 ? 0 : index, d);
       notifyListeners();
       rethrow;
+    }
+    if (syncService != null) {
+      try {
+        await syncService!.enqueueDelete(d.id);
+      } catch (e) {
+        debugPrint('AppStore: failed to enqueue DELETE outbox: $e');
+      }
     }
     if (d.photo != null) {
       final file = File(d.photo!);
@@ -198,6 +222,7 @@ class AppStore extends ChangeNotifier {
       notifyListeners();
       rethrow;
     }
+    await syncService?.clearLocalOutbox();
     if (!oldHistory.any((d) => d.photo != null)) return;
     final dir = await getApplicationDocumentsDirectory();
     await for (final entity in dir.list()) {
