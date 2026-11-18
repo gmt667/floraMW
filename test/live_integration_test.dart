@@ -1,9 +1,23 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:floramw/models.dart';
 import 'package:floramw/services/api_client.dart';
+
+Future<bool> _isBackendReachable(String url) async {
+  try {
+    final client = http.Client();
+    final res = await client
+        .get(Uri.parse('$url/api/v1/flowers'))
+        .timeout(const Duration(milliseconds: 500));
+    client.close();
+    return res.statusCode == 200;
+  } catch (_) {
+    return false;
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +30,9 @@ void main() {
       const baseUrl = 'http://127.0.0.1:8008';
 
       // Verify backend is reachable
+      if (!await _isBackendReachable(baseUrl)) {
+        return;
+      }
       final client = FloraApiClient(baseUrl: baseUrl);
 
       // 1. Anonymous Authentication

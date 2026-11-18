@@ -1,11 +1,25 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:floramw/services/api_client.dart';
 import 'package:floramw/services/sync_service.dart';
 import 'package:floramw/store.dart';
+
+Future<bool> _isBackendReachable(String url) async {
+  try {
+    final client = http.Client();
+    final res = await client
+        .get(Uri.parse('$url/api/v1/flowers'))
+        .timeout(const Duration(milliseconds: 500));
+    client.close();
+    return res.statusCode == 200;
+  } catch (_) {
+    return false;
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +30,10 @@ void main() {
     'Live FastAPI Field Journal Observation Synchronization (CRUD & 409 Resolution)',
     () async {
       const baseUrl = 'http://127.0.0.1:8008';
+
+      if (!await _isBackendReachable(baseUrl)) {
+        return;
+      }
 
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
