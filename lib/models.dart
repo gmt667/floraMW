@@ -86,7 +86,8 @@ final plants = <Plant>[
         'Madagascar periwinkle produces delicate, five-lobed flowers. Although the species is studied for compounds used in specialist medicines, the flower and other plant parts must never be eaten or used as home remedies.',
     sections: {
       ...pending,
-      'Each flower has a slender tube that opens into five flat, petal-like lobes arranged like a pinwheel. A contrasting central eye is common, and blooms are often pink, rose or white. Flower colour and shape can vary, so compare several blooms before drawing a conclusion.',
+      'Identifying features':
+          'Each flower has a slender tube that opens into five flat, petal-like lobes arranged like a pinwheel. A contrasting central eye is common, and blooms are often pink, rose or white. Flower colour and shape can vary, so compare several blooms before drawing a conclusion.',
       'Growing conditions':
           'NC State Extension describes sun to partial shade and freely draining soil. It tolerates heat and some dry conditions. Avoid persistently wet roots.',
       'Plant care & treatment':
@@ -128,7 +129,8 @@ final plants = <Plant>[
         'An upright flowering annual with dense flower heads. Despite its common name, it originates from Mexico and Guatemala.',
     sections: {
       ...pending,
-      'What looks like one marigold flower is actually a rounded flower head made up of many tiny florets. Bright yellow or orange ray florets form the outer ring, while smaller disc florets cluster in the centre. Some cultivated forms have densely packed, pom-pom-like heads.',
+      'Identifying features':
+          'What looks like one marigold flower is actually a rounded flower head made up of many tiny florets. Bright yellow or orange ray florets form the outer ring, while smaller disc florets cluster in the centre. Some cultivated forms have densely packed, pom-pom-like heads.',
       'Growing conditions':
           'NC State Extension recommends full sun and well-drained soil, with reasonably even moisture. Light afternoon shade can be tolerated.',
       'Plant care & treatment':
@@ -156,7 +158,8 @@ final plants = <Plant>[
         'A tropical flowering tree native from Mexico to Venezuela, according to Kew. A reference photograph is not evidence of local occurrence.',
     sections: {
       ...pending,
-      'Frangipani flowers grow in clusters and usually have five thick, waxy petals that overlap in a pinwheel shape. The petals may be white, pink or red, often with a yellow throat. Fragrance and colour vary by cultivar; related Plumeria species can look similar.',
+      'Identifying features':
+          'Frangipani flowers grow in clusters and usually have five thick, waxy petals that overlap in a pinwheel shape. The petals may be white, pink or red, often with a yellow throat. Fragrance and colour vary by cultivar; related Plumeria species can look similar.',
       'Growing conditions':
           'Singapore National Parks describes full sun, moderate watering and well-drained soil. This is general horticultural guidance, not a Malawi district planting guarantee.',
       'Plant care & treatment':
