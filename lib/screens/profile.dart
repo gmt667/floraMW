@@ -20,7 +20,7 @@ class ProfileScreen extends StatelessWidget {
     listenable: store,
     builder: (context, _) => Scaffold(
       appBar: AppBar(
-        title: const FloraText('Plant profile'),
+        title: const FloraText('Flower profile'),
         actions: [
           IconButton(
             tooltip: store.saved.contains(plant.id)
@@ -69,7 +69,9 @@ class ProfileScreen extends StatelessWidget {
             (e) => Card(
               elevation: 0,
               child: ExpansionTile(
-                title: FloraText(e.key),
+                title: FloraText(
+                  e.key == 'Identifying features' ? 'Flower features' : e.key,
+                ),
                 subtitle: FloraText(
                   [
                         'Local names & knowledge',
