@@ -75,3 +75,24 @@ async def test_get_flower_detail_not_found(client: AsyncClient):
     """Nonexistent flower slug returns 404."""
     response = await client.get("/api/v1/flowers/unknown-flower-slug")
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("flower_id", "expected_terms"),
+    [
+        ("hibiscus", ("staminal column", "anthers", "stigma")),
+        ("periwinkle", ("five", "pinwheel", "central eye")),
+        ("marigold", ("ray florets", "disc florets", "flower head")),
+        ("frangipani", ("waxy", "five", "yellow throat")),
+    ],
+)
+async def test_identifying_features_describe_the_flower(
+    flower_id: str, expected_terms: tuple[str, ...], client: AsyncClient
+):
+    """Flower feature explanations focus on visible bloom morphology."""
+    response = await client.get(f"/api/v1/flowers/{flower_id}")
+    assert response.status_code == 200
+    features = response.json()["sections"]["Identifying features"].lower()
+    for term in expected_terms:
+        assert term in features
