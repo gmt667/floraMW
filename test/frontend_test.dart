@@ -34,13 +34,14 @@ void main() {
     () async {
       final s = await makeStore();
       await s.toggleSave('hibiscus');
-      await s.addDiscovery('hibiscus', null);
+      await s.addDiscovery('hibiscus', null, isDemo: true);
       s.history.first.note = 'Observed in a garden';
       s.dark = true;
       await s.commit();
       final reloaded = AppStore(await SharedPreferences.getInstance());
       expect(reloaded.saved, contains('hibiscus'));
       expect(reloaded.history.first.note, 'Observed in a garden');
+      expect(reloaded.history.first.isDemo, isTrue);
       expect(reloaded.dark, true);
       await reloaded.clearPersonalData();
       final cleared = AppStore(await SharedPreferences.getInstance());
@@ -64,59 +65,21 @@ void main() {
       true,
     );
   });
-  testWidgets('search resets and demo no-match can be retried', (tester) async {
-    final s = await makeStore();
-    await tester.pumpWidget(FloraMWApp(store: s));
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('catalog-search')),
-      250,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('catalog-search')),
-      'not-a-flower',
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('No plants found'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Reset filters'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.text('Reset filters'));
-    await tester.pumpAndSettle();
-    expect(find.text('No plants found'), findsNothing);
-    await tester.tap(find.text('Identify').last);
-    await tester.pumpAndSettle();
-    final dropdown = find.byType(DropdownButtonFormField<DemoOutcome>);
-    await tester.scrollUntilVisible(
-      dropdown,
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(dropdown);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('No match').last);
-    await tester.pumpAndSettle();
-    final run = find.text('Explore demo without a photo');
-    await tester.scrollUntilVisible(
-      run,
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(run);
-    await tester.pump();
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
-    await tester.pumpAndSettle(const Duration(seconds: 2));
-    await tester.scrollUntilVisible(
-      find.text('No match found'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('No match found'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'identification requires a selected photo and hides demo controls',
+    (tester) async {
+      final s = await makeStore();
+      await tester.pumpWidget(FloraMWApp(store: s));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Identify').last);
+      await tester.pumpAndSettle();
+      expect(find.text('What’s blooming?'), findsOneWidget);
+      expect(find.text('Identify this flower'), findsOneWidget);
+      expect(find.text('DEMO MODE · No AI is connected.'), findsNothing);
+      expect(find.byType(DropdownButtonFormField<DemoOutcome>), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('welcome can be completed and persists', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final s = AppStore(await SharedPreferences.getInstance());
