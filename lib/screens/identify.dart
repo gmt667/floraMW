@@ -22,7 +22,6 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
   String? path, error;
   bool busy = false;
   IdentificationResult? result;
-  DemoOutcome outcome = DemoOutcome.matches;
   int generation = 0;
   final picker = ImagePicker();
   @override
@@ -98,9 +97,9 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
     try {
       final value = await widget.service.identify(path, DemoOutcome.matches);
       if (mounted && request == generation) setState(() => result = value);
-    } catch (_) {
+    } catch (exception) {
       if (mounted && request == generation) {
-        final message = _errorMessageFor(_);
+        final message = _errorMessageFor(exception);
         setState(() => error = message);
       }
     } finally {
