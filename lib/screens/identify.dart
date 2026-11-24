@@ -45,7 +45,7 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
     final allowed = await confirm(
       context,
       source == ImageSource.camera ? 'Use camera?' : 'Choose a photo?',
-      'Choosing a photo does not upload it. FloraMW will ask for your permission before sending the image securely to its identification service.',
+      'Choosing a photo does not upload it. FloraMW will ask for your permission before sending the image to its identification service.',
     );
     if (!allowed || !mounted) return;
     try {
@@ -202,7 +202,7 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
         const LinearProgressIndicator(),
         const SizedBox(height: 12),
         const FloraText(
-          'Sending photo securely and checking possible matches…',
+          'Sending photo to the identification service and checking possible matches…',
         ),
       ],
       if (error != null) ...[
