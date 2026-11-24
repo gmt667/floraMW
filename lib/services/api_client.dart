@@ -758,6 +758,10 @@ class FloraApiClient {
         (item['url'] ?? '').toString(),
       );
     }).where((source) => source.url.isNotEmpty).toList();
+    final rawSections = json['sections'] as Map?;
+    final sections = rawSections != null && rawSections.isNotEmpty
+        ? Map<String, String>.from(rawSections)
+        : (local?.sections ?? pending);
     return Plant(
       id: cleanId,
       name: (json['name'] ?? local?.name ?? cleanId).toString(),
@@ -767,9 +771,7 @@ class FloraApiClient {
           .toString(),
       symbol: (json['symbol'] ?? local?.symbol ?? '🌸').toString(),
       description: (json['description'] ?? local?.description ?? '').toString(),
-      sections: Map<String, String>.from(
-        json['sections'] as Map? ?? local?.sections ?? pending,
-      ),
+      sections: sections,
       sources: sources.isNotEmpty
           ? sources
           : (local?.sources ?? const [pmraSource]),
