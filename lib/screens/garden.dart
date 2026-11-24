@@ -71,13 +71,13 @@ class GardenScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 children: [
                   const Notice(
-                    'All saved identifications are demonstrations, not verified botanical matches.',
+                    'Photo-based suggestions are not botanist-verified. Demonstration-provider results are labelled DEMO.',
                   ),
                   if (store.history.isEmpty)
                     const EmptyState(
                       Icons.history,
                       'No discoveries yet',
-                      'Save a sample candidate from Identify to start a photo journal.',
+                      'Save a possible match from Identify to start a photo journal.',
                     ),
                   ...store.history.map((d) {
                     final p = plantById(d.plantId);
@@ -90,7 +90,7 @@ class GardenScreen extends StatelessWidget {
                         ),
                         title: FloraText(p.name),
                         subtitle: FloraText(
-                          '${d.createdAt.substring(0, 10)} · ${d.district ?? 'District not set'} · DEMO\n${d.note.isEmpty ? 'Add your field notes' : d.note}',
+                          '${d.createdAt.substring(0, 10)} · ${d.district ?? 'District not set'} · ${d.isDemo ? 'DEMO' : 'POSSIBLE MATCH'}\n${d.note.isEmpty ? 'Add your field notes' : d.note}',
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -151,7 +151,7 @@ class _JournalScreenState extends State<JournalScreen> {
           const SizedBox(height: 20),
           FloraText(p.name, style: Theme.of(context).textTheme.headlineMedium),
           FloraText(
-            '${widget.discovery.createdAt.substring(0, 10)} · ${widget.discovery.district ?? 'District not set'} · Demo identification',
+            '${widget.discovery.createdAt.substring(0, 10)} · ${widget.discovery.district ?? 'District not set'} · ${widget.discovery.isDemo ? 'DEMO' : 'POSSIBLE MATCH'}',
           ),
           const SizedBox(height: 20),
           TextField(
