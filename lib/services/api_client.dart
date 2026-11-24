@@ -741,7 +741,13 @@ class FloraApiClient {
       );
     }
     final json = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
-    final local = plants.where((p) => p.id == cleanId).firstOrNull;
+    Plant? local;
+    for (final item in plants) {
+      if (item.id == cleanId) {
+        local = item;
+        break;
+      }
+    }
     final rawSources = json['sources'] as List<dynamic>? ?? const [];
     final sources = rawSources.map((raw) {
       final item = Map<String, dynamic>.from(raw as Map);
