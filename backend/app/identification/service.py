@@ -98,7 +98,7 @@ _NO_MATCH_GUIDANCE_ACTIONS = [
     "Take a new photograph that includes the flower and its visible leaves.",
     "Ensure the image is well-lit, in focus, and not blurred.",
     "Capture the full flower first, then a close-up of its petals and central features.",
-    "Include any visible fruits, seeds, or seed pods.",
+    "Focus on a fully open bloom and its distinguishing petal and centre features.",
     "Consider consulting a local botanist for in-person identification.",
 ]
 
