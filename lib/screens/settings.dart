@@ -109,7 +109,7 @@ class SettingsScreen extends StatelessWidget {
         onTap: () => info(
           context,
           'Getting a useful photo',
-          'Use daylight, a steady camera and an uncluttered background. Include flowers, leaves and the whole plant in separate views where possible. Avoid touching or tasting an unknown plant. If access is denied, enable camera/photo permission in device settings. No-match and service-error states can be explored from Identify. Saved sample results remain demo records.',
+          'Use daylight, a steady camera and an uncluttered background. Photograph the flower and its visible leaves in separate views where possible. Avoid touching or tasting an unidentified flower. If access is denied, enable camera/photo permission in device settings. No-match and service-error states can be explored from Identify. Saved sample results remain demo records.',
         ),
       ),
       ListTile(
@@ -137,7 +137,7 @@ class SettingsScreen extends StatelessWidget {
         onTap: () => info(
           context,
           'FloraMW',
-          'A Malawi-focused botanical companion. Version 1.0.0 frontend demonstration. Built with Flutter and Dart for Android and iOS. Reference photographs include attribution and reuse licences. No live AI or personalized treatment advice is included. General botanical summaries link to sources; local traditional uses and district occurrence await review.',
+          'A Malawi-focused flower discovery and reference companion. Version 1.0.0 frontend demonstration. Built with Flutter and Dart for Android and iOS. Reference photographs include attribution and reuse licences. No live AI or personalized treatment advice is included. General botanical summaries link to sources; local traditional uses and district occurrence await review.',
         ),
       ),
       ListTile(
