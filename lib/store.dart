@@ -113,7 +113,11 @@ class AppStore extends ChangeNotifier {
     }
   }
 
-  Future<void> addDiscovery(String plantId, String? path) async {
+  Future<void> addDiscovery(
+    String plantId,
+    String? path, {
+    bool isDemo = false,
+  }) async {
     final id = DateTime.now().microsecondsSinceEpoch.toString();
     String? durable;
     if (path != null) {
@@ -127,6 +131,7 @@ class AppStore extends ChangeNotifier {
       createdAt: DateTime.now().toIso8601String(),
       photo: durable,
       district: district,
+      isDemo: isDemo,
     );
     history.insert(0, record);
     try {
@@ -142,7 +147,7 @@ class AppStore extends ChangeNotifier {
     }
     if (syncService != null) {
       try {
-        await syncService!.enqueueCreate(record);
+        await syncService!.enqueueCreate(record, isDemo: record.isDemo);
       } catch (e) {
         debugPrint('AppStore: failed to enqueue CREATE outbox: $e');
       }

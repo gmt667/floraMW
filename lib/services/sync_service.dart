@@ -266,7 +266,7 @@ class SyncService {
             'createdAt': discovery.createdAt,
             'district': discovery.district,
             'note': discovery.note,
-            'isDemo': false,
+            'isDemo': discovery.isDemo,
           };
           final op = SyncOperation(
             opId: generateUuidV4(),
@@ -300,7 +300,7 @@ class SyncService {
         'createdAt': discovery.createdAt,
         'district': discovery.district,
         'note': discovery.note,
-        'isDemo': isDemo,
+        'isDemo': discovery.isDemo || isDemo,
       };
 
       final op = SyncOperation(
@@ -538,6 +538,14 @@ class SyncService {
   }
 
   Future<SyncProcessResult> _internalProcessQueue() async {
+    if (_queue.isEmpty) {
+      return const SyncProcessResult(
+        processedCount: 0,
+        remainingCount: 0,
+        hasNetworkError: false,
+      );
+    }
+
     if (_isProcessing) {
       return SyncProcessResult(
         processedCount: 0,

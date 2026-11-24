@@ -530,6 +530,8 @@ void main() {
           );
           expect(result.candidateIds, ['hibiscus']);
           expect(result.isDemo, isFalse);
+          expect(result.safetyDisclaimer, 'Safe');
+          expect(result.providerId, 'plantnet');
         } finally {
           tempDir.deleteSync(recursive: true);
         }
@@ -674,6 +676,49 @@ void main() {
               .having((e) => e.retryable, 'retryable', isTrue),
         ),
       );
+    });
+  });
+
+  group('Flower Profile Retrieval (getFlower)', () {
+    test('loads server-managed profile sections and source references', () async {
+      SharedPreferences.setMockInitialValues({
+        FloraApiClient.tokenStorageKey: 'mock-valid-token',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final mockClient = MockClient((request) async {
+        expect(request.url.path, '/api/v1/flowers/hibiscus');
+        expect(request.headers['Authorization'], 'Bearer mock-valid-token');
+        return http.Response(
+          jsonEncode({
+            'id': 'hibiscus',
+            'name': 'Chinese hibiscus server name',
+            'scientific': 'Hibiscus rosa-sinensis',
+            'family': 'Malvaceae',
+            'category': 'Garden flowers',
+            'symbol': '🌺',
+            'description': 'Server-managed description',
+            'sections': {'Identifying features': 'Five broad petals.'},
+            'sources': [
+              {
+                'title': 'Botanical reference',
+                'url': 'https://example.org/hibiscus',
+                'is_pmra_reference': false,
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final client = FloraApiClient(
+        httpClient: mockClient,
+        baseUrl: 'http://127.0.0.1:8000',
+        prefs: prefs,
+      );
+      final flower = await client.getFlower('hibiscus');
+      expect(flower.name, 'Chinese hibiscus server name');
+      expect(flower.sections['Identifying features'], 'Five broad petals.');
+      expect(flower.sources.single.title, 'Botanical reference');
     });
   });
 

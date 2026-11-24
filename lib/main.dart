@@ -37,6 +37,7 @@ class Bootstrap extends StatefulWidget {
 class _BootstrapState extends State<Bootstrap> {
   AppStore? store;
   bool failed = false;
+  String? failureMessage;
   @override
   void initState() {
     super.initState();
@@ -44,7 +45,10 @@ class _BootstrapState extends State<Bootstrap> {
   }
 
   Future<void> load() async {
-    setState(() => failed = false);
+    setState(() {
+      failed = false;
+      failureMessage = null;
+    });
     try {
       await TranslationCatalog.load();
       final prefs = await SharedPreferences.getInstance();
@@ -54,8 +58,15 @@ class _BootstrapState extends State<Bootstrap> {
       await syncService.reconcileStartup(history: appStore.history);
       unawaited(syncService.processQueue());
       if (mounted) setState(() => store = appStore);
-    } catch (_) {
-      if (mounted) setState(() => failed = true);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          failureMessage = error is StateError
+              ? error.message.toString()
+              : 'Device storage could not be opened.';
+          failed = true;
+        });
+      }
     }
   }
 
@@ -92,7 +103,10 @@ class _BootstrapState extends State<Bootstrap> {
                 if (!failed)
                   const CircularProgressIndicator()
                 else ...[
-                  const FloraText('Device storage could not be opened.'),
+                  FloraText(
+                    failureMessage ?? 'FloraMW could not start. Please retry.',
+                    textAlign: TextAlign.center,
+                  ),
                   TextButton(
                     onPressed: load,
                     child: const FloraText('Try again'),
@@ -454,10 +468,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       final client =
           widget.store.syncService?.client ??
           FloraApiClient(prefs: widget.store.prefs);
-      final remote = await client.getFlowers(
-        district: widget.store.district,
-        limit: 100,
-      );
+      // The selected district is a user preference, not evidence of a
+      // flower's verified occurrence. Keep the catalogue complete unless
+      // the user explicitly chooses a district filter in a future feature.
+      final remote = await client.getFlowers(limit: 100);
       if (mounted) {
         setState(() {
           _remotePlants = remote;
@@ -510,6 +524,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             '${languageNames[widget.store.language]} selected · Untranslated content appears in English. Translation review pending.',
           ),
         if (widget.store.loadWarning != null) Notice(widget.store.loadWarning!),
+        if (_loading && _remotePlants == null)
+          const LinearProgressIndicator(),
+        if (_errorMessage != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _fetchCatalogue,
+              icon: const Icon(Icons.refresh),
+              label: const FloraText('Retry catalogue connection'),
+            ),
+          ),
         if (_errorMessage != null && _remotePlants == null)
           Notice(_errorMessage!, icon: Icons.cloud_off_outlined),
         const FloraText(
