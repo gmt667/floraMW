@@ -2,6 +2,14 @@
 
 A Flutter mobile app for a Malawi-focused flower companion, backed by the FloraMW FastAPI service. Browse the server-managed flower catalogue and profiles, request photo identification through the configured backend provider, submit botanical corrections, and keep an offline-first field journal.
 
+## Contributors
+
+- George M. Taumbe
+- Chrispin Moyo
+- Christopher C. Ng'oma
+- Moses Mukhodya
+- Prescot Magaleta
+
 ## Run
 
 Use Flutter **3.47.9**, a compatible Android SDK/Java setup, or macOS/Xcode for iOS. Native Android and iOS runner projects are included.
