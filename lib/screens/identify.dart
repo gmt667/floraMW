@@ -204,13 +204,6 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
         const FloraText(
           'Sending photo securely and checking possible matches…',
         ),
-        TextButton(
-          onPressed: () {
-            generation++;
-            setState(() => busy = false);
-          },
-          child: const FloraText('Cancel'),
-        ),
       ],
       if (error != null) ...[
         Notice(error!, icon: Icons.error_outline),
