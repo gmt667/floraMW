@@ -190,9 +190,7 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
       FilledButton.icon(
         onPressed: busy || path == null ? null : identify,
         icon: const Icon(Icons.auto_awesome_outlined),
-        label: FloraText(
-          'Identify this flower',
-        ),
+        label: const FloraText('Identify this flower'),
       ),
       if (busy) ...[
         const SizedBox(height: 24),
@@ -256,10 +254,10 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
                 onPressed: () => guarded(
                   context,
                   () => widget.store.addDiscovery(
-            p.id,
-            path,
-            isDemo: result!.isDemo,
-          ),
+                    p.id,
+                    path,
+                    isDemo: result!.isDemo,
+                  ),
                   success: result!.isDemo
                       ? 'Demonstration discovery saved with your photo.'
                       : 'Possible match saved to your field journal.',
