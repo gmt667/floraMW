@@ -443,7 +443,7 @@ class DiscoverScreen extends StatefulWidget {
 }
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
-  String query = '', category = 'All plants';
+  String query = '', category = 'All flowers';
   bool az = true;
   final search = TextEditingController();
   List<Plant>? _remotePlants;
@@ -505,7 +505,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   '${p.name} ${p.scientific} ${p.family}'
                       .toLowerCase()
                       .contains(query.toLowerCase()) &&
-                  (category == 'All plants' || category == p.category),
+                  (category == 'All flowers' || category == p.category),
             )
             .toList()
           ..sort(
@@ -643,7 +643,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           child: Row(
             children:
                 [
-                      'All plants',
+                      'All flowers',
                       'Garden flowers',
                       'Research interest',
                       'Flowering trees',
@@ -672,7 +672,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 search.clear();
                 setState(() {
                   query = '';
-                  category = 'All plants';
+                  category = 'All flowers';
                 });
               },
               child: const FloraText('Reset filters'),

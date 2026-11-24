@@ -27,7 +27,7 @@ class GardenScreen extends StatelessWidget {
         ),
         const TabBar(
           tabs: [
-            Tab(text: 'Saved plants'),
+            Tab(text: 'Saved flowers'),
             Tab(text: 'Discovery history'),
           ],
         ),
@@ -43,7 +43,7 @@ class GardenScreen extends StatelessWidget {
                     const EmptyState(
                       Icons.bookmarks_outlined,
                       'Room to grow',
-                      'Save a plant from its profile to find it here.',
+                      'Save a flower from its profile to find it here.',
                     ),
                   ...plants
                       .where((p) => store.saved.contains(p.id))
@@ -177,7 +177,7 @@ class _JournalScreenState extends State<JournalScreen> {
                 builder: (_) => ProfileScreen(plant: p, store: widget.store),
               ),
             ),
-            child: const FloraText('Open plant profile'),
+            child: const FloraText('Open flower profile'),
           ),
           TextButton.icon(
             onPressed: () async {

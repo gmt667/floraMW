@@ -120,12 +120,13 @@ You must provide `labels.json` mapping class indices to scientific names:
 
 ```json
 {
-  "0": "Faidherbia albida",
-  "1": "Adansonia digitata",
-  "2": "Hibiscus rosa-sinensis",
-  "42": "Catharanthus roseus"
+  "0": "Hibiscus rosa-sinensis",
+  "1": "Catharanthus roseus",
+  "2": "Tagetes erecta",
 }
 ```
+
+**Flower-only scope:** Every class in `labels.json` must be a flower species intentionally included in the FloraMW flower catalogue. Do not include trees, shrubs, crops, weeds, or other non-flower classes merely because they are botanical species. Non-flower photographs and non-flowering plant images must return `outcome="no_match"` with no flower candidates.
 
 **Rules for scientific names:**
 - Use the accepted full binomial (Genus + specific epithet).
@@ -216,9 +217,9 @@ Before the backend can integrate your model, you must provide:
 
 ```json
 {
-  "0": "Faidherbia albida",
-  "1": "Adansonia digitata",
-  "2": "Hibiscus rosa-sinensis"
+  "0": "Hibiscus rosa-sinensis",
+  "1": "Catharanthus roseus",
+  "2": "Tagetes erecta"
 }
 ```
 

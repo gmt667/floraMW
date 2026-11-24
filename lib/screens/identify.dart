@@ -136,7 +136,7 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
       ),
       const SizedBox(height: 12),
       const FloraText(
-        'Include the flower, leaves and whole plant. Use natural light and keep the image sharp.',
+        'Photograph the flower clearly, including its petals and visible leaves. Use natural light and keep the image sharp.',
         style: TextStyle(height: 1.6),
       ),
       const SizedBox(height: 20),

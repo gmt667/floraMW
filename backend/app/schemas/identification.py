@@ -95,13 +95,13 @@ class IdentificationErrorCode(str, Enum):
 # ---------------------------------------------------------------------------
 
 _SAFETY_DISCLAIMER = (
-    "Plant identification from photographs is not a substitute for expert "
+    "Flower identification from photographs is not a substitute for expert "
     "botanical assessment. Confidence scores reflect the provider's internal "
     "model and have not been independently validated for real-world accuracy. "
-    "Never determine whether a plant is safe to eat, touch, or use medicinally "
+    "Never determine whether a flower is safe to touch, eat, or use medicinally "
     "based solely on a visual match from this system. Toxicity, drug interactions, "
     "allergies, and risks for children, pregnancy, and breastfeeding require "
-    "qualified review. If you are uncertain about a plant, consult a qualified "
+    "qualified review. If you are uncertain about a flower, consult a qualified "
     "botanist or medical professional."
 )
 
