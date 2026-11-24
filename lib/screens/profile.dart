@@ -11,115 +11,153 @@ import '../services/api_client.dart';
 import '../store.dart';
 import '../ui.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final Plant plant;
   final AppStore store;
   const ProfileScreen({super.key, required this.plant, required this.store});
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: store,
-    builder: (context, _) => Scaffold(
-      appBar: AppBar(
-        title: const FloraText('Flower profile'),
-        actions: [
-          IconButton(
-            tooltip: store.saved.contains(plant.id)
-                ? 'Remove bookmark'
-                : 'Save plant',
-            onPressed: () => guarded(context, () => store.toggleSave(plant.id)),
-            icon: Icon(
-              store.saved.contains(plant.id)
-                  ? Icons.bookmark
-                  : Icons.bookmark_outline,
-            ),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          PlantArt(plant),
-          const SizedBox(height: 20),
-          const FloraText(
-            'REFERENCE PROFILE · NOT A PHOTO MATCH',
-            style: TextStyle(fontSize: 11, letterSpacing: 1.5),
-          ),
-          const SizedBox(height: 12),
-          FloraText(
-            plant.name,
-            style: Theme.of(context).textTheme.headlineLarge,
-          ),
-          FloraText(
-            plant.scientific,
-            style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 16),
-          ),
-          Wrap(
-            spacing: 8,
-            children: [
-              Chip(label: FloraText(plant.family)),
-              Chip(label: FloraText(plant.category)),
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  late final Future<Plant?> _remoteProfile = _loadRemoteProfile();
+
+  Future<Plant?> _loadRemoteProfile() async {
+    try {
+      final client = widget.store.syncService?.client ??
+          FloraApiClient(prefs: widget.store.prefs);
+      return await client.getFlower(widget.plant.id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Plant?>(
+    future: _remoteProfile,
+    builder: (context, snapshot) {
+      final profilePlant = snapshot.data ?? widget.plant;
+      return ListenableBuilder(
+        listenable: widget.store,
+        builder: (context, _) => Scaffold(
+          appBar: AppBar(
+            title: const FloraText('Flower profile'),
+            actions: [
+              IconButton(
+                tooltip: widget.store.saved.contains(profilePlant.id)
+                    ? 'Remove bookmark'
+                    : 'Save plant',
+                onPressed: () =>
+                    guarded(
+                      context,
+                      () => widget.store.toggleSave(profilePlant.id),
+                    ),
+                icon: Icon(
+                  widget.store.saved.contains(profilePlant.id)
+                      ? Icons.bookmark
+                      : Icons.bookmark_outline,
+                ),
+              ),
             ],
           ),
-          FloraText(plant.description, style: const TextStyle(height: 1.6)),
-          const SizedBox(height: 12),
-          const Notice(
-            'This reference profile is not a confirmed match for your photo. General summaries link to public sources; local knowledge and Malawi distribution still need field review.',
-          ),
-          ...plant.sections.entries.map(
-            (e) => Card(
-              elevation: 0,
-              child: ExpansionTile(
-                title: FloraText(
-                  e.key == 'Identifying features' ? 'Flower features' : e.key,
+          body: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              PlantArt(profilePlant),
+              const SizedBox(height: 20),
+              const FloraText(
+                'REFERENCE PROFILE · NOT A PHOTO MATCH',
+                style: TextStyle(fontSize: 11, letterSpacing: 1.5),
+              ),
+              const SizedBox(height: 12),
+              FloraText(
+                profilePlant.name,
+                style: Theme.of(context).textTheme.headlineLarge,
+              ),
+              FloraText(
+                profilePlant.scientific,
+                style: const TextStyle(
+                  fontStyle: FontStyle.italic,
+                  fontSize: 16,
                 ),
-                subtitle: FloraText(
-                  [
-                        'Local names & knowledge',
-                        'Malawi distribution',
-                      ].contains(e.key)
-                      ? 'Local verification pending'
-                      : e.key == 'Medicinal research' &&
-                            plant.id != 'periwinkle'
-                      ? 'No treatment claim'
-                      : 'Source-linked educational information',
-                  style: const TextStyle(fontSize: 11),
-                ),
+              ),
+              Wrap(
+                spacing: 8,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                    child: FloraText(
-                      e.value,
-                      style: const TextStyle(height: 1.6),
-                    ),
-                  ),
+                  Chip(label: FloraText(profilePlant.family)),
+                  Chip(label: FloraText(profilePlant.category)),
                 ],
               ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Semantics(
-            header: true,
-            child: FloraText(
-              'Sources & image credit',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-          ...plant.sources.map((s) => SourceLink(s.title, s.url)),
-          PhotoCredits(plantId: plant.id),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => ReportScreen(store: store, plantId: plant.id),
+              FloraText(
+                profilePlant.description,
+                style: const TextStyle(height: 1.6),
               ),
-            ),
-            icon: const Icon(Icons.flag_outlined),
-            label: const FloraText('Suggest a correction'),
+              const SizedBox(height: 12),
+              const Notice(
+                'This reference profile is not a confirmed match for your photo. General summaries link to public sources; local knowledge and Malawi distribution still need field review.',
+              ),
+              ...profilePlant.sections.entries.map(
+                (e) => Card(
+                  elevation: 0,
+                  child: ExpansionTile(
+                    title: FloraText(
+                      e.key == 'Identifying features'
+                          ? 'Flower features'
+                          : e.key,
+                    ),
+                    subtitle: FloraText(
+                      [
+                            'Local names & knowledge',
+                            'Malawi distribution',
+                          ].contains(e.key)
+                          ? 'Local verification pending'
+                          : e.key == 'Medicinal research' &&
+                                profilePlant.id != 'periwinkle'
+                          ? 'No treatment claim'
+                          : 'Source-linked educational information',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                        child: FloraText(
+                          e.value,
+                          style: const TextStyle(height: 1.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Semantics(
+                header: true,
+                child: FloraText(
+                  'Sources & image credit',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              ...profilePlant.sources.map((s) => SourceLink(s.title, s.url)),
+              PhotoCredits(plantId: profilePlant.id),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => ReportScreen(
+                      store: widget.store,
+                      plantId: profilePlant.id,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.flag_outlined),
+                label: const FloraText('Suggest a correction'),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
+        ),
+      );
+    },
   );
 }
 
