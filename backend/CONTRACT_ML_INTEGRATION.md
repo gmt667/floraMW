@@ -2,8 +2,13 @@
 
 **Version:** 1.0.0
 **Issued:** 2026-11-11
-**Issued By:** Backend Engineering (chrispine moyo)
-**For:** Christopher C. N'goma, Prescott Magaleta, Moses Munkhondya
+**Issued By:** Backend & Application Integration — George M. Taumbe; Backend Engineering — Chrispin Moyo
+**For:** Christopher C. Ng'oma, Moses Mukhodya, Prescot Magaleta
+
+### FloraMW Project Team
+- **Backend & application integration:** George M. Taumbe
+- **Backend engineering:** Chrispin Moyo
+- **Machine learning & data science:** Christopher C. Ng'oma, Moses Mukhodya, Prescot Magaleta
 
 ---
 
