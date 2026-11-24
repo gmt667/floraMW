@@ -143,7 +143,7 @@ class AppStore extends ChangeNotifier {
     }
     if (syncService != null) {
       try {
-        await syncService!.enqueueCreate(record);
+        await syncService!.enqueueCreate(record, isDemo: record.isDemo);
       } catch (e) {
         debugPrint('AppStore: failed to enqueue CREATE outbox: $e');
       }
