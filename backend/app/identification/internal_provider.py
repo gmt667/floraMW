@@ -1,7 +1,7 @@
 """Internal machine learning botanical identification provider adapter.
 
 Connects the internally trained botanical identification model developed by
-Christopher C. N'goma, Prescott Magaleta, and Moses Munkhondya to the FloraMW
+Christopher C. Ng'oma, Prescot Magaleta, and Moses Mukhodya to the FloraMW
 identification engine.
 
 Satisfies the IdentificationProvider protocol, supporting:
