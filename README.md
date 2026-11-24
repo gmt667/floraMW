@@ -1,6 +1,6 @@
 # FloraMW
 
-A Flutter mobile app for a Malawi-focused flower companion, backed by the FloraMW FastAPI service. Browse the server-managed flower catalogue, request photo identification through the configured backend provider, submit botanical corrections, and keep an offline-first field journal.
+A Flutter mobile app for a Malawi-focused flower companion, backed by the FloraMW FastAPI service. Browse the server-managed flower catalogue and profiles, request photo identification through the configured backend provider, submit botanical corrections, and keep an offline-first field journal.
 
 ## Run
 
