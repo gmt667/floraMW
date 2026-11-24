@@ -113,7 +113,11 @@ class AppStore extends ChangeNotifier {
     }
   }
 
-  Future<void> addDiscovery(String plantId, String? path, {bool isDemo = false}) async {
+  Future<void> addDiscovery(
+    String plantId,
+    String? path, {
+    bool isDemo = false,
+  }) async {
     final id = DateTime.now().microsecondsSinceEpoch.toString();
     String? durable;
     if (path != null) {
