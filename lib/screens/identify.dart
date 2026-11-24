@@ -99,20 +99,25 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
     });
     try {
       final value = await widget.service.identify(path, DemoOutcome.matches);
-      if (mounted && request == generation) setState(() => result = value);
+      if (mounted && request == generation) {
+        setState(() => result = value);
+      }
     } catch (exception) {
       if (mounted && request == generation) {
         final message = _errorMessageFor(exception);
         setState(() => error = message);
       }
     } finally {
-      if (mounted && request == generation) setState(() => busy = false);
+      if (mounted && request == generation) {
+        setState(() => busy = false);
+      }
     }
   }
 
   String _errorMessageFor(Object exception) {
     if (exception is FloraApiException) return exception.message;
-    return 'FloraMW could not identify this photo. Check your internet connection and try again.';
+    return 'FloraMW could not identify this photo. Check your internet connection '
+        'and try again.';
   }
 
   @override
