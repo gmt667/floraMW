@@ -674,7 +674,8 @@ class FloraApiClient {
       if (search != null && search.trim().isNotEmpty) 'q': search.trim(),
       if (category != null &&
           category.trim().isNotEmpty &&
-          category.trim() != 'All plants')
+          category.trim() != 'All plants' &&
+          category.trim() != 'All flowers')
         'category': category.trim(),
       if (family != null && family.trim().isNotEmpty) 'family': family.trim(),
       if (district != null && district.trim().isNotEmpty)
