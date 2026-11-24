@@ -5,7 +5,7 @@ on:
   pull_request:
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: frontend-${{ github.ref }}
   cancel-in-progress: true
@@ -18,8 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.9'
@@ -28,16 +26,6 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - name: Format Dart sources
         run: dart format lib test tool/check_models.dart
-      - name: Commit formatting changes
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        run: |
-          if ! git diff --quiet; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add lib test tool/check_models.dart
-            git commit -m "style: format Dart sources"
-            git push origin HEAD:${GITHUB_HEAD_REF}
-          fi
       - run: flutter analyze --no-pub
       - run: flutter test --no-pub
       - run: dart tool/check_models.dart
