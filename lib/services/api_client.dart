@@ -734,7 +734,9 @@ class FloraApiClient {
     if (response.statusCode != 200) {
       final errorBody = _parseErrorBody(response.body);
       throw FloraApiException(
-        message: errorBody['message'] ?? 'Failed to retrieve flower profile (${response.statusCode})',
+        message:
+            errorBody['message'] ??
+            'Failed to retrieve flower profile (${response.statusCode})',
         statusCode: response.statusCode,
         errorCode: errorBody['error_code'],
         retryable: response.statusCode >= 500,
@@ -761,11 +763,16 @@ class FloraApiClient {
       name: (json['name'] ?? local?.name ?? cleanId).toString(),
       scientific: (json['scientific'] ?? local?.scientific ?? '').toString(),
       family: (json['family'] ?? local?.family ?? '').toString(),
-      category: (json['category'] ?? local?.category ?? 'Garden flowers').toString(),
+      category: (json['category'] ?? local?.category ?? 'Garden flowers')
+          .toString(),
       symbol: (json['symbol'] ?? local?.symbol ?? '🌸').toString(),
       description: (json['description'] ?? local?.description ?? '').toString(),
-      sections: Map<String, String>.from(json['sections'] as Map? ?? local?.sections ?? pending),
-      sources: sources.isNotEmpty ? sources : (local?.sources ?? const [pmraSource]),
+      sections: Map<String, String>.from(
+        json['sections'] as Map? ?? local?.sections ?? pending,
+      ),
+      sources: sources.isNotEmpty
+          ? sources
+          : (local?.sources ?? const [pmraSource]),
     );
   }
 
