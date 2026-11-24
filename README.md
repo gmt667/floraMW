@@ -1,6 +1,6 @@
 # FloraMW
 
-A Flutter mobile frontend for a Malawi-focused botanical companion. Photograph a flower, explore a clearly labelled demonstration identification journey, browse source-linked reference profiles and keep a local field journal.
+A Flutter mobile frontend for a Malawi-focused flower companion. Photograph a flower, explore a clearly labelled demonstration identification journey, browse source-linked flower profiles and keep a local field journal.
 
 **Frontend only:** no backend services, live AI, server uploads, cloud sync or feedback submission are implemented or changed.
 
@@ -30,7 +30,7 @@ The APK is created at `build/app/outputs/flutter-apk/app-debug.apk`. Production 
 - Discover search by common name, scientific name or family, categories, sorting and empty/reset state.
 - Camera/gallery selection, photo preview/removal, consent explanation, permission failures and Android lost-image recovery.
 - Demonstration identification with loading, cancellation, candidate lists, no match, service error and retry. Demo candidates are independent of the selected photograph. No invented confidence score is shown.
-- Reference profiles with licensed photographs, source links, scientific names/families, identifying features, plant care, growing conditions, toxicity, medicinal research and legal/conservation information.
+- Reference profiles with licensed photographs, source links, scientific names/families, flower features, flower care, growing conditions, toxicity, medicinal research and legal/conservation information.
 - Scientific evidence and Malawian traditional knowledge remain separate. Malawi district occurrence, community-attributed uses and local names await field verification rather than being invented.
 - Persistent bookmarks, discovery photos, district snapshots, history, editable notes and deletion.
 - Correction form, local report drafts and draft deletion. Reports are not sent to a server.

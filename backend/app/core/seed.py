@@ -123,15 +123,17 @@ PLANTS_DATA = [
         "category": "Garden flowers",
         "symbol": "\U0001f33a",
         "description": (
-            "A tropical evergreen shrub in the mallow family, known for large "
-            "flowers with a prominent central floral tube."
+            "A tropical flowering shrub best known for its large, showy hibiscus "
+            "blooms."
         ),
         "sections": {
             **_PENDING,
             "Identifying features": (
-                "Large funnel-shaped flowers; a conspicuous central floral tube; "
-                "glossy leaves with toothed edges. Cultivars vary. These features "
-                "alone do not confirm an identification."
+                "The bloom is large and trumpet-shaped, with five broad, overlapping "
+                "petals surrounding a long central staminal column. Yellow anthers "
+                "line the column, with the stigma visible near its tip. Flower colours "
+                "and petal forms vary between cultivars; use these details as clues "
+                "rather than proof of identity."
             ),
             "Growing conditions": (
                 "NC State Extension describes sun to partial shade and fertile, moist "
@@ -167,16 +169,17 @@ PLANTS_DATA = [
         "category": "Research interest",
         "symbol": "\U0001f338",
         "description": (
-            "A flowering plant with glossy opposite leaves and typically five "
-            "spreading flower lobes. Its medicinal compounds do not make the whole "
-            "plant safe to consume."
+            "Madagascar periwinkle produces delicate, five-lobed flowers. Although the "
+            "species is studied for compounds used in specialist medicines, the "
+            "flower and other plant parts must never be eaten or used as home remedies."
         ),
         "sections": {
             **_PENDING,
             "Identifying features": (
-                "Opposite glossy leaves with a pale midrib and flowers with a narrow "
-                "tube opening into five broad lobes. Pink and white forms occur. "
-                "Compare multiple features and seek expert confirmation."
+                "Each flower has a slender tube that opens into five flat, petal-like "
+                "lobes arranged like a pinwheel. A contrasting central eye is common, "
+                "and blooms are often pink, rose or white. Flower colour and shape can "
+                "vary, so compare several blooms before drawing a conclusion."
             ),
             "Growing conditions": (
                 "NC State Extension describes sun to partial shade and freely draining "
@@ -240,9 +243,10 @@ PLANTS_DATA = [
         "sections": {
             **_PENDING,
             "Identifying features": (
-                "Dense yellow or orange flower heads and divided aromatic leaves are "
-                "useful comparison features. Cultivars differ, and similar marigolds "
-                "can be confused."
+                "What looks like one marigold flower is actually a rounded flower head "
+                "made up of many tiny florets. Bright yellow or orange ray florets form "
+                "the outer ring, while smaller disc florets cluster in the centre. Some "
+                "cultivated forms have densely packed, pom-pom-like heads."
             ),
             "Growing conditions": (
                 "NC State Extension recommends full sun and well-drained soil, with "
@@ -284,9 +288,10 @@ PLANTS_DATA = [
         "sections": {
             **_PENDING,
             "Identifying features": (
-                "A small tree with thick branches and clusters of flowers. Flower "
-                "colour varies. Related Plumeria species can look similar, so check "
-                "leaves and other features with a specialist."
+                "Frangipani flowers grow in clusters and usually have five thick, waxy "
+                "petals that overlap in a pinwheel shape. The petals may be white, pink "
+                "or red, often with a yellow throat. Fragrance and colour vary by "
+                "cultivar; related Plumeria species can look similar."
             ),
             "Growing conditions": (
                 "Singapore National Parks describes full sun, moderate watering and "

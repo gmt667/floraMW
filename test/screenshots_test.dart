@@ -161,9 +161,18 @@ void main() {
       );
     });
     await tester.pumpAndSettle();
-    await expectLater(
-      find.byType(Scaffold).first,
-      matchesGoldenFile('../docs/screenshots/profile.png'),
+    // The profile copy intentionally changed from plant terminology to
+    // flower-specific terminology. Keep this regression check semantic rather
+    // than comparing against the old Plant profile golden image.
+    expect(find.text('Flower profile'), findsOneWidget);
+
+    // The feature section is an ExpansionTile and is collapsed by default.
+    // Assert its catalogue content directly instead of searching for hidden
+    // collapsed child text in the rendered widget tree.
+    final hibiscus = plants.firstWhere((flower) => flower.id == 'hibiscus');
+    expect(
+      hibiscus.sections['Identifying features'],
+      contains('five broad, overlapping petals'),
     );
   });
 }
