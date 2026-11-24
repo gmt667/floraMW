@@ -123,9 +123,10 @@ You must provide `labels.json` mapping class indices to scientific names:
   "0": "Hibiscus rosa-sinensis",
   "1": "Catharanthus roseus",
   "2": "Tagetes erecta",
-  "42": "Catharanthus roseus"
 }
 ```
+
+**Flower-only scope:** Every class in `labels.json` must be a flower species intentionally included in the FloraMW flower catalogue. Do not include trees, shrubs, crops, weeds, or other non-flower classes merely because they are botanical species. Non-flower photographs and non-flowering plant images must return `outcome="no_match"` with no flower candidates.
 
 **Rules for scientific names:**
 - Use the accepted full binomial (Genus + specific epithet).
