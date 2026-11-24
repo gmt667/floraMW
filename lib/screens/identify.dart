@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models.dart';
+import '../services/api_client.dart';
 import '../store.dart';
 import '../ui.dart';
 import 'profile.dart';
@@ -21,7 +22,6 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
   String? path, error;
   bool busy = false;
   IdentificationResult? result;
-  DemoOutcome outcome = DemoOutcome.matches;
   int generation = 0;
   final picker = ImagePicker();
   @override
@@ -45,7 +45,7 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
     final allowed = await confirm(
       context,
       source == ImageSource.camera ? 'Use camera?' : 'Choose a photo?',
-      'FloraMW uses the device picker. Your selected photo stays on this device. No image or location is uploaded in this frontend demo.',
+      'Choosing a photo does not upload it. FloraMW will ask for your permission before sending the image securely to its identification service.',
     );
     if (!allowed || !mounted) return;
     try {
@@ -78,6 +78,19 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
   }
 
   Future<void> identify() async {
+    if (path == null) {
+      setState(
+        () => error =
+            'Choose a flower photo before requesting identification.',
+      );
+      return;
+    }
+    final allowed = await confirm(
+      context,
+      'Send photo for identification?',
+      'Your selected flower photo will be uploaded to the FloraMW backend and forwarded to its configured identification provider. The backend processes the image for this request; the app does not promise permanent storage or deletion beyond the provider and server policies. Do not upload people, private documents or sensitive images. Continue?',
+    );
+    if (!allowed || !mounted) return;
     final request = ++generation;
     setState(() {
       busy = true;
@@ -85,17 +98,26 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
       error = null;
     });
     try {
-      final value = await widget.service.identify(path, outcome);
-      if (mounted && request == generation) setState(() => result = value);
-    } catch (_) {
-      if (mounted && request == generation)
-        setState(
-          () => error =
-              'The demo request failed. Your photo is still available. Retry or choose a different demo outcome.',
-        );
+      final value = await widget.service.identify(path, DemoOutcome.matches);
+      if (mounted && request == generation) {
+        setState(() => result = value);
+      }
+    } catch (exception) {
+      if (mounted && request == generation) {
+        final message = _errorMessageFor(exception);
+        setState(() => error = message);
+      }
     } finally {
-      if (mounted && request == generation) setState(() => busy = false);
+      if (mounted && request == generation) {
+        setState(() => busy = false);
+      }
     }
+  }
+
+  String _errorMessageFor(Object exception) {
+    if (exception is FloraApiException) return exception.message;
+    return 'FloraMW could not identify this photo. Check your internet connection '
+        'and try again.';
   }
 
   @override
@@ -167,62 +189,35 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
           child: const FloraText('Remove photo'),
         ),
       const Notice(
-        'DEMO MODE · No AI is connected. Sample candidates do not depend on your photo. No confidence percentages are fabricated.',
-      ),
-      DropdownButtonFormField<DemoOutcome>(
-        initialValue: outcome,
-        decoration: const InputDecoration(labelText: 'Preview result state'),
-        items: const [
-          DropdownMenuItem(
-            value: DemoOutcome.matches,
-            child: FloraText('Sample candidates'),
-          ),
-          DropdownMenuItem(
-            value: DemoOutcome.noMatch,
-            child: FloraText('No match'),
-          ),
-          DropdownMenuItem(
-            value: DemoOutcome.error,
-            child: FloraText('Service error'),
-          ),
-        ],
-        onChanged: busy ? null : (v) => setState(() => outcome = v!),
+        'Identification requires an internet connection. Results are suggestions, not confirmed species identifications.',
       ),
       const SizedBox(height: 14),
       FilledButton.icon(
-        onPressed: busy ? null : identify,
+        onPressed: busy || path == null ? null : identify,
         icon: const Icon(Icons.auto_awesome_outlined),
-        label: FloraText(
-          path == null
-              ? 'Explore demo without a photo'
-              : 'Run demo identification',
-        ),
+        label: const FloraText('Identify this flower'),
       ),
       if (busy) ...[
         const SizedBox(height: 24),
         const LinearProgressIndicator(),
         const SizedBox(height: 12),
-        const FloraText('Preparing a demonstration result…'),
-        TextButton(
-          onPressed: () {
-            generation++;
-            setState(() => busy = false);
-          },
-          child: const FloraText('Cancel'),
+        const FloraText(
+          'Sending photo securely and checking possible matches…',
         ),
       ],
       if (error != null) ...[
         Notice(error!, icon: Icons.error_outline),
         TextButton(
           onPressed: busy ? null : identify,
-          child: const FloraText('Retry demo request'),
+          child: const FloraText('Retry identification'),
         ),
       ],
+      if (result != null) Notice(result!.safetyDisclaimer),
       if (result != null && result!.candidateIds.isEmpty)
         EmptyState(
           Icons.search_off,
           'No match found',
-          'This is the demo no-match state. Try a clearer view of the flower and leaves.',
+          'The service did not return a reliable catalogue match. Try a clearer photo showing the flower and leaves.',
           action: OutlinedButton(
             onPressed: () => pick(ImageSource.camera),
             child: const FloraText('Retake photo'),
@@ -231,11 +226,13 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
       if (result != null && result!.candidateIds.isNotEmpty) ...[
         const SizedBox(height: 24),
         FloraText(
-          'Sample candidates',
+          result!.isDemo ? 'Demonstration candidates' : 'Possible matches',
           style: Theme.of(context).textTheme.titleLarge,
         ),
-        const FloraText(
-          'Compare features with a botanist. These are not image predictions.',
+        Notice(
+          result!.isDemo
+              ? 'The backend is currently using a demonstration provider (${result!.providerId}). These candidates are examples and are not based on your photograph.'
+              : 'These are possible matches returned by ${result!.providerId}. They are not confirmed identifications.',
         ),
         ...result!.candidateIds.map((id) {
           final p = plantById(id);
@@ -254,11 +251,21 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
               TextButton.icon(
                 onPressed: () => guarded(
                   context,
-                  () => widget.store.addDiscovery(p.id, path),
-                  success: 'Demo discovery saved with your photo.',
+                  () => widget.store.addDiscovery(
+                    p.id,
+                    path,
+                    isDemo: result!.isDemo,
+                  ),
+                  success: result!.isDemo
+                      ? 'Demonstration discovery saved with your photo.'
+                      : 'Possible match saved to your field journal.',
                 ),
                 icon: const Icon(Icons.add_circle_outline),
-                label: FloraText('Save ${p.name} as demo discovery'),
+                label: FloraText(
+                  result!.isDemo
+                      ? 'Save ${p.name} as demo discovery'
+                      : 'Save ${p.name} to field journal',
+                ),
               ),
             ],
           );
