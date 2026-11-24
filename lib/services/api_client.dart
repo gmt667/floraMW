@@ -228,6 +228,12 @@ class FloraApiClient {
   static String get defaultBaseUrl {
     const envUrl = String.fromEnvironment('FLORAMW_API_BASE_URL');
     if (envUrl.isNotEmpty) return envUrl;
+    if (kReleaseMode) {
+      throw StateError(
+        'FLORAMW_API_BASE_URL must be set for release builds. '
+        'Pass --dart-define=FLORAMW_API_BASE_URL=https://your-api-host.',
+      );
+    }
     if (!kIsWeb && Platform.isAndroid) {
       return 'http://10.0.2.2:8000';
     }
@@ -833,6 +839,8 @@ class ApiIdentificationService implements IdentificationService {
     return IdentificationResult(
       candidateIds: response.candidateIds,
       isDemo: response.isDemo,
+      safetyDisclaimer: response.safetyDisclaimer,
+      providerId: response.providerId,
     );
   }
 }
