@@ -25,8 +25,8 @@ if plist.exists():
  data=plistlib.loads(plist.read_bytes())
  data['CFBundleDisplayName']='FloraMW'
  data['CFBundleName']='FloraMW'
- data['NSCameraUsageDescription']='FloraMW uses your camera to photograph plants when you choose to.'
- data['NSPhotoLibraryUsageDescription']='FloraMW lets you select a plant photograph from your library.'
+ data['NSCameraUsageDescription']='FloraMW uses your camera to photograph flowers when you choose to.'
+ data['NSPhotoLibraryUsageDescription']='FloraMW lets you select a flower photograph from your library.'
  plist.write_bytes(plistlib.dumps(data,sort_keys=False))
  icons=root/'ios/Runner/Assets.xcassets/AppIcon.appiconset'
  contents=icons/'Contents.json'
