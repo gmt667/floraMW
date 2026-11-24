@@ -120,9 +120,9 @@ You must provide `labels.json` mapping class indices to scientific names:
 
 ```json
 {
-  "0": "Faidherbia albida",
-  "1": "Adansonia digitata",
-  "2": "Hibiscus rosa-sinensis",
+  "0": "Hibiscus rosa-sinensis",
+  "1": "Catharanthus roseus",
+  "2": "Tagetes erecta",
   "42": "Catharanthus roseus"
 }
 ```
@@ -216,9 +216,9 @@ Before the backend can integrate your model, you must provide:
 
 ```json
 {
-  "0": "Faidherbia albida",
-  "1": "Adansonia digitata",
-  "2": "Hibiscus rosa-sinensis"
+  "0": "Hibiscus rosa-sinensis",
+  "1": "Catharanthus roseus",
+  "2": "Tagetes erecta"
 }
 ```
 
