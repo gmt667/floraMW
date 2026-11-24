@@ -64,7 +64,9 @@ void main() {
       true,
     );
   });
-  testWidgets('identification requires a selected photo and hides demo controls', (tester) async {
+  testWidgets(
+    'identification requires a selected photo and hides demo controls',
+    (tester) async {
     final s = await makeStore();
     await tester.pumpWidget(FloraMWApp(store: s));
     await tester.pumpAndSettle();
@@ -73,9 +75,10 @@ void main() {
     expect(find.text('What’s blooming?'), findsOneWidget);
     expect(find.text('Identify this flower'), findsOneWidget);
     expect(find.text('DEMO MODE · No AI is connected.'), findsNothing);
-    expect(find.byType(DropdownButtonFormField<DemoOutcome>), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.byType(DropdownButtonFormField<DemoOutcome>), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('welcome can be completed and persists', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final s = AppStore(await SharedPreferences.getInstance());
