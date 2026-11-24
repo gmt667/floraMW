@@ -191,6 +191,7 @@ Plant plantById(String id) =>
 class Discovery {
   final String id, plantId, createdAt;
   final String? photo, district;
+  final bool isDemo;
   String note;
   Discovery({
     required this.id,
@@ -198,6 +199,7 @@ class Discovery {
     required this.createdAt,
     this.photo,
     this.district,
+    this.isDemo = false,
     this.note = '',
   });
   Map<String, dynamic> toJson() => {
@@ -206,6 +208,7 @@ class Discovery {
     'createdAt': createdAt,
     'photo': photo,
     'district': district,
+    'isDemo': isDemo,
     'note': note,
   };
   factory Discovery.fromJson(Map<String, dynamic> j) => Discovery(
@@ -214,6 +217,7 @@ class Discovery {
     createdAt: j['createdAt'] as String,
     photo: j['photo'] as String?,
     district: j['district'] as String?,
+    isDemo: j['isDemo'] as bool? ?? false,
     note: j['note'] as String? ?? '',
   );
 }
@@ -223,9 +227,13 @@ enum DemoOutcome { matches, noMatch, error }
 class IdentificationResult {
   final List<String> candidateIds;
   final bool isDemo;
+  final String safetyDisclaimer;
+  final String providerId;
   const IdentificationResult({
     required this.candidateIds,
     required this.isDemo,
+    this.safetyDisclaimer = 'Photo identification can be wrong. Confirm with a qualified botanist before using a plant.',
+    this.providerId = 'demo',
   });
 }
 
