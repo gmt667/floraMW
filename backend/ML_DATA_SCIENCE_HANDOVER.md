@@ -3,7 +3,12 @@
 **Version:** 1.1.0  
 **Date:** 2026-11-17  
 **Author:** Backend & Integration Engineering Lead  
-**Audience:** FloraMW Machine Learning & Data Science Team  
+**Audience:** FloraMW Machine Learning & Data Science Team
+
+### Project Team & Ownership
+- **Backend & application integration:** George M. Taumbe
+- **Backend engineering:** Chrispin Moyo
+- **Machine learning & data science:** Christopher C. Ng'oma, Moses Mukhodya, Prescot Magaleta  
 **Target Repository:** `floraMW` | **Branch:** `main` | **Backend Directory:** `/backend`
 
 ---
