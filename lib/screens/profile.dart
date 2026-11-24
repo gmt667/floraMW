@@ -46,7 +46,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               IconButton(
                 tooltip: widget.store.saved.contains(profilePlant.id)
                     ? 'Remove bookmark'
-                    : 'Save plant',
+                    : 'Save flower',
                 onPressed: () =>
                     guarded(
                       context,
@@ -202,7 +202,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 [
                       'Identification',
                       'Local knowledge',
-                      'Plant care',
+                      'Flower care',
                       'Safety',
                       'Legal information',
                       'Other',
