@@ -440,7 +440,7 @@ The provider adapter catches and translates specific exceptions from `backend/ap
 ### 7.1 Existing Backend Validation Requirements
 To pass backend acceptance, any delivered model integration must satisfy these verified criteria:
 1. **Valid Image Inference:** Returns `HTTP 200 OK` with structured `IdentificationResponse` when provided with valid flower photographs.
-2. **Out-of-Distribution / Non-Plant Handling:** Returns `outcome="no_match"` with `candidates=[]` when non-plant imagery is submitted. Must not raise unhandled exceptions.
+2. **Out-of-Scope / Non-Flower Handling:** Returns `outcome="no_match"` with `candidates=[]` when non-flower imagery is submitted. Must not raise unhandled exceptions.
 3. **Finite Confidence Values:** All returned confidence values must be strictly finite floats in $[0.0, 1.0]$. NaN, $\pm\infty$, or values $< 0.0$ or $> 1.0$ cause immediate rejection.
 4. **Catalogue Cross-Referencing:** Species matching the FloraMW catalogue must have `catalogue_matched=true` and populate `catalogue_flower_id`.
 5. **Configured Timeout Enforcement:** The application enforces a configured timeout threshold (`INTERNAL_MODEL_TIMEOUT_SECONDS`, default: 5.0 seconds). Requests exceeding this limit return `HTTP 504 Gateway Timeout`.
