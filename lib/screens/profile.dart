@@ -11,24 +11,45 @@ import '../services/api_client.dart';
 import '../store.dart';
 import '../ui.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final Plant plant;
   final AppStore store;
   const ProfileScreen({super.key, required this.plant, required this.store});
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: store,
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  late final Future<Plant?> _remoteProfile = _loadRemoteProfile();
+
+  Future<Plant?> _loadRemoteProfile() async {
+    try {
+      final client = widget.store.syncService?.client ??
+          FloraApiClient(prefs: widget.store.prefs);
+      return await client.getFlower(widget.plant.id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Plant?>(
+    future: _remoteProfile,
+    builder: (context, snapshot) {
+      final profilePlant = snapshot.data ?? widget.plant;
+      return ListenableBuilder(
+    listenable: widget.store,
     builder: (context, _) => Scaffold(
       appBar: AppBar(
         title: const FloraText('Flower profile'),
         actions: [
           IconButton(
-            tooltip: store.saved.contains(plant.id)
+            tooltip: widget.store.saved.contains(profilePlant.id)
                 ? 'Remove bookmark'
                 : 'Save plant',
-            onPressed: () => guarded(context, () => store.toggleSave(plant.id)),
+            onPressed: () => guarded(context, () => widget.store.toggleSave(profilePlant.id)),
             icon: Icon(
-              store.saved.contains(plant.id)
+              widget.store.saved.contains(profilePlant.id)
                   ? Icons.bookmark
                   : Icons.bookmark_outline,
             ),
@@ -38,7 +59,7 @@ class ProfileScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          PlantArt(plant),
+          PlantArt(profilePlant),
           const SizedBox(height: 20),
           const FloraText(
             'REFERENCE PROFILE · NOT A PHOTO MATCH',
@@ -46,26 +67,26 @@ class ProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           FloraText(
-            plant.name,
+            profilePlant.name,
             style: Theme.of(context).textTheme.headlineLarge,
           ),
           FloraText(
-            plant.scientific,
+            profilePlant.scientific,
             style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 16),
           ),
           Wrap(
             spacing: 8,
             children: [
-              Chip(label: FloraText(plant.family)),
-              Chip(label: FloraText(plant.category)),
+              Chip(label: FloraText(profilePlant.family)),
+              Chip(label: FloraText(profilePlant.category)),
             ],
           ),
-          FloraText(plant.description, style: const TextStyle(height: 1.6)),
+          FloraText(profilePlant.description, style: const TextStyle(height: 1.6)),
           const SizedBox(height: 12),
           const Notice(
             'This reference profile is not a confirmed match for your photo. General summaries link to public sources; local knowledge and Malawi distribution still need field review.',
           ),
-          ...plant.sections.entries.map(
+          ...profilePlant.sections.entries.map(
             (e) => Card(
               elevation: 0,
               child: ExpansionTile(
@@ -79,7 +100,7 @@ class ProfileScreen extends StatelessWidget {
                       ].contains(e.key)
                       ? 'Local verification pending'
                       : e.key == 'Medicinal research' &&
-                            plant.id != 'periwinkle'
+                            profilePlant.id != 'periwinkle'
                       ? 'No treatment claim'
                       : 'Source-linked educational information',
                   style: const TextStyle(fontSize: 11),
@@ -104,14 +125,14 @@ class ProfileScreen extends StatelessWidget {
               style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
-          ...plant.sources.map((s) => SourceLink(s.title, s.url)),
-          PhotoCredits(plantId: plant.id),
+          ...profilePlant.sources.map((s) => SourceLink(s.title, s.url)),
+          PhotoCredits(plantId: profilePlant.id),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute<void>(
-                builder: (_) => ReportScreen(store: store, plantId: plant.id),
+                builder: (_) => ReportScreen(store: widget.store, plantId: profilePlant.id),
               ),
             ),
             icon: const Icon(Icons.flag_outlined),
@@ -120,6 +141,8 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
     ),
+  );
+    },
   );
 }
 
