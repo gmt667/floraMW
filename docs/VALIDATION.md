@@ -1,34 +1,26 @@
-# Frontend validation — 8 November 2026
+# FloraMW validation
 
-Validated implementation commit: `8fbd3b7bfffdd6810674d1a855c637b6b024dbed`.
+## Validation scope
 
-## Passed
+GitHub Actions validates Flutter formatting, analysis, unit/widget tests, standalone model checks, asset/licence checks, an Android debug APK build and an unsigned iOS simulator build.
 
-- Flutter 3.47.9 analysis: no issues, locally and in GitHub CI.
-- All **14** tests passed locally and in CI: eleven widget/state/layout/accessibility tests and three screenshot-comparison tests.
-- Coverage includes all 28 districts, seven language choices, preference migration, persistent records and local translations, onboarding, no-match flow, narrow screens, large text, source sections, labelled controls and Android tap-target guidelines.
-- Standalone model checks and asset/licence/native-metadata checks passed.
-- Native Android and iOS runners generated with app branding and permission descriptions.
-- **Android debug APK compiled successfully**, locally and in CI. Local APK signature verification passed. Manifest confirms FloraMW, package `mw.floramw.floramw`, minimum Android API 24 and target API 36. Bundled font licence and image-credit assets were verified in the APK.
-- **Unsigned iOS simulator build compiled successfully** in GitHub CI on macOS. This is compilation validation, not physical iPhone testing or production signing.
-- Discover, Identify and Plant profile screenshots were rendered from Flutter widgets and visually inspected. They are not physical-device screenshots.
+The live backend integration is separate from frontend CI. The live integration test in `test/live_integration_test.dart` targets a local development API at `http://127.0.0.1:8008` and skips when that service is not reachable. A passing frontend workflow does not prove that the production API host or identification provider is reachable.
 
-## Download the Android demonstration
+## Backend integration implemented in the client
 
-[Successful frontend workflow run](https://github.com/gmt667/floraMW/actions/runs/42473007899)
+- Anonymous device-token registration and persistence.
+- Server-managed flower catalogue and full profile retrieval, with bundled offline fallback.
+- Multipart photo identification with explicit upload consent, provider/demo metadata and backend safety disclaimer.
+- Offline-first field-journal metadata synchronization with durable outbox and preserved demo/live labels.
+- Botanical correction report submission with local-draft fallback.
 
-Open its **Artifacts** section and download **FloraMW-Android-demo**, then extract `app-debug.apk`. The artifact is a development-signed demonstration, not a store release. GitHub reports expiry on 6 February 2027; the repository retains the source and reproducible build instructions after artifact expiry.
+## Still requires deployment/device verification
 
-Local build SHA-256 (the CI build can differ because it uses a separate development signing key):
+- Supply `FLORAMW_API_BASE_URL` as a valid HTTPS origin when building release binaries.
+- Verify production health, authentication, catalogue, full profile, photo identification, journal synchronization and report submission against the deployed API.
+- Confirm a real identification provider and server-side key are configured; mock mode must be disabled in production.
+- Confirm image retention/deletion terms with the provider and ensure they match the consent/privacy notice.
+- Test camera/gallery permission flows, network loss/recovery, screen readers and representative physical devices.
+- Complete translation, botanical, local-knowledge, clinical and legal review before public release.
 
-`ba71b5ad96c305e94bd4aa8bf1ad42f74cb97187515786db028051cb8bcbbc9a`
-
-## Still requires devices or qualified review
-
-- Physical Android/iOS camera/gallery selection, permission refusal/revocation and OS lifecycle recovery.
-- Screen-reader traversal, external source links, representative device font scaling and performance.
-- Production Android/iOS signing and any store publication. No production signing key is included.
-- Complete native translations, community-attributed local knowledge and qualified botanical, clinical and legal review. Source-linked general profiles do not establish Malawi district occurrence.
-- Live identification/backend behavior. **No backend, server endpoint, live AI connection or cloud submission service was added or changed.**
-
-The app labels demonstration candidates independently of the selected photo. Missing translations fall back to English visibly; language selection does not claim that a pack has been fully translated or approved.
+The production API hostname and provider credentials are deployment configuration and are not embedded in the repository. No production readiness claim should be made until the deployed service passes the smoke tests in `API_HANDOFF.md`.
