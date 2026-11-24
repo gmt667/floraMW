@@ -227,7 +227,20 @@ class FloraApiClient {
   /// 3. iOS/Desktop/Web: http://127.0.0.1:8000
   static String get defaultBaseUrl {
     const envUrl = String.fromEnvironment('FLORAMW_API_BASE_URL');
-    if (envUrl.isNotEmpty) return envUrl;
+    if (envUrl.isNotEmpty) {
+      final parsed = Uri.tryParse(envUrl);
+      if (kReleaseMode &&
+          (parsed == null || parsed.scheme != 'https' || parsed.host.isEmpty)) {
+        throw StateError('Release API URL must be a valid HTTPS URL.');
+      }
+      return envUrl;
+    }
+    if (kReleaseMode) {
+      throw StateError(
+        'FLORAMW_API_BASE_URL must be set for release builds. '
+        'Pass --dart-define=FLORAMW_API_BASE_URL=https://your-api-host.',
+      );
+    }
     if (!kIsWeb && Platform.isAndroid) {
       return 'http://10.0.2.2:8000';
     }
@@ -710,6 +723,61 @@ class FloraApiClient {
     );
   }
 
+  /// Retrieve the complete server-managed flower profile.
+  Future<Plant> getFlower(String flowerId) async {
+    final cleanId = flowerId.trim();
+    if (cleanId.isEmpty || cleanId.contains('/')) {
+      throw const FloraApiException(message: 'A valid flower ID is required.');
+    }
+    final uri = Uri.parse('$baseUrl/api/v1/flowers/$cleanId');
+    final response = await _sendAuthenticatedRequest('GET', uri);
+    if (response.statusCode != 200) {
+      final errorBody = _parseErrorBody(response.body);
+      throw FloraApiException(
+        message:
+            errorBody['message'] ??
+            'Failed to retrieve flower profile (${response.statusCode})',
+        statusCode: response.statusCode,
+        errorCode: errorBody['error_code'],
+        retryable: response.statusCode >= 500,
+      );
+    }
+    final json = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    Plant? local;
+    for (final item in plants) {
+      if (item.id == cleanId) {
+        local = item;
+        break;
+      }
+    }
+    final rawSources = json['sources'] as List<dynamic>? ?? const [];
+    final sources = rawSources.map((raw) {
+      final item = Map<String, dynamic>.from(raw as Map);
+      return PlantSource(
+        (item['title'] ?? 'Botanical reference').toString(),
+        (item['url'] ?? '').toString(),
+      );
+    }).where((source) => source.url.isNotEmpty).toList();
+    final rawSections = json['sections'] as Map?;
+    final sections = rawSections != null && rawSections.isNotEmpty
+        ? Map<String, String>.from(rawSections)
+        : (local?.sections ?? pending);
+    return Plant(
+      id: cleanId,
+      name: (json['name'] ?? local?.name ?? cleanId).toString(),
+      scientific: (json['scientific'] ?? local?.scientific ?? '').toString(),
+      family: (json['family'] ?? local?.family ?? '').toString(),
+      category: (json['category'] ?? local?.category ?? 'Garden flowers')
+          .toString(),
+      symbol: (json['symbol'] ?? local?.symbol ?? '🌸').toString(),
+      description: (json['description'] ?? local?.description ?? '').toString(),
+      sections: sections,
+      sources: sources.isNotEmpty
+          ? sources
+          : (local?.sources ?? const [pmraSource]),
+    );
+  }
+
   /// Submit a botanical feedback or correction report to the backend.
   Future<Map<String, dynamic>> submitReport({
     String? id,
@@ -831,8 +899,12 @@ class ApiIdentificationService implements IdentificationService {
     final response = await client.identifyPlant(photoPath: photoPath);
 
     return IdentificationResult(
-      candidateIds: response.candidateIds,
+      candidateIds: response.candidateIds
+          .where((id) => plants.any((plant) => plant.id == id))
+          .toList(),
       isDemo: response.isDemo,
+      safetyDisclaimer: response.safetyDisclaimer,
+      providerId: response.providerId,
     );
   }
 }
