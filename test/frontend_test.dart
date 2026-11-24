@@ -74,7 +74,18 @@ void main() {
       await tester.tap(find.text('Identify').last);
       await tester.pumpAndSettle();
       expect(find.text('What’s blooming?'), findsOneWidget);
-      expect(find.text('Identify this flower'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Identify this flower'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      final identifyButton = tester.widget<FilledButton>(
+        find.ancestor(
+          of: find.text('Identify this flower'),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      expect(identifyButton.onPressed, isNull);
       expect(find.text('DEMO MODE · No AI is connected.'), findsNothing);
       expect(find.byType(DropdownButtonFormField<DemoOutcome>), findsNothing);
       expect(tester.takeException(), isNull);
