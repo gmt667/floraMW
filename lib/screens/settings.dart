@@ -222,7 +222,7 @@ class _DraftsScreenState extends State<DraftsScreen> {
             const EmptyState(
               Icons.drafts_outlined,
               'No drafts',
-              'Create a correction draft or report from a plant profile.',
+              'Create a correction draft or report from a flower profile.',
             ),
           ...widget.store.reports.map(
             (r) => Card(
