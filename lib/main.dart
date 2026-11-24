@@ -37,6 +37,7 @@ class Bootstrap extends StatefulWidget {
 class _BootstrapState extends State<Bootstrap> {
   AppStore? store;
   bool failed = false;
+  String? failureMessage;
   @override
   void initState() {
     super.initState();
@@ -44,7 +45,10 @@ class _BootstrapState extends State<Bootstrap> {
   }
 
   Future<void> load() async {
-    setState(() => failed = false);
+    setState(() {
+      failed = false;
+      failureMessage = null;
+    });
     try {
       await TranslationCatalog.load();
       final prefs = await SharedPreferences.getInstance();
@@ -54,8 +58,15 @@ class _BootstrapState extends State<Bootstrap> {
       await syncService.reconcileStartup(history: appStore.history);
       unawaited(syncService.processQueue());
       if (mounted) setState(() => store = appStore);
-    } catch (_) {
-      if (mounted) setState(() => failed = true);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          failureMessage = error is StateError
+              ? error.message.toString()
+              : 'Device storage could not be opened.';
+          failed = true;
+        });
+      }
     }
   }
 
@@ -92,7 +103,10 @@ class _BootstrapState extends State<Bootstrap> {
                 if (!failed)
                   const CircularProgressIndicator()
                 else ...[
-                  const FloraText('Device storage could not be opened.'),
+                  FloraText(
+                    failureMessage ?? 'FloraMW could not start. Please retry.',
+                    textAlign: TextAlign.center,
+                  ),
                   TextButton(
                     onPressed: load,
                     child: const FloraText('Try again'),
