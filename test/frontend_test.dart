@@ -34,13 +34,14 @@ void main() {
     () async {
       final s = await makeStore();
       await s.toggleSave('hibiscus');
-      await s.addDiscovery('hibiscus', null);
+      await s.addDiscovery('hibiscus', null, isDemo: true);
       s.history.first.note = 'Observed in a garden';
       s.dark = true;
       await s.commit();
       final reloaded = AppStore(await SharedPreferences.getInstance());
       expect(reloaded.saved, contains('hibiscus'));
       expect(reloaded.history.first.note, 'Observed in a garden');
+      expect(reloaded.history.first.isDemo, isTrue);
       expect(reloaded.dark, true);
       await reloaded.clearPersonalData();
       final cleared = AppStore(await SharedPreferences.getInstance());
