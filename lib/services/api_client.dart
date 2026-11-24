@@ -227,7 +227,14 @@ class FloraApiClient {
   /// 3. iOS/Desktop/Web: http://127.0.0.1:8000
   static String get defaultBaseUrl {
     const envUrl = String.fromEnvironment('FLORAMW_API_BASE_URL');
-    if (envUrl.isNotEmpty) return envUrl;
+    if (envUrl.isNotEmpty) {
+      final parsed = Uri.tryParse(envUrl);
+      if (kReleaseMode &&
+          (parsed == null || parsed.scheme != 'https' || parsed.host.isEmpty)) {
+        throw StateError('Release API URL must be a valid HTTPS URL.');
+      }
+      return envUrl;
+    }
     if (kReleaseMode) {
       throw StateError(
         'FLORAMW_API_BASE_URL must be set for release builds. '
@@ -713,6 +720,46 @@ class FloraApiClient {
       statusCode: response.statusCode,
       errorCode: errorBody['error_code'],
       retryable: response.statusCode >= 500,
+    );
+  }
+
+  /// Retrieve the complete server-managed flower profile.
+  Future<Plant> getFlower(String flowerId) async {
+    final cleanId = flowerId.trim();
+    if (cleanId.isEmpty || cleanId.contains('/')) {
+      throw const FloraApiException(message: 'A valid flower ID is required.');
+    }
+    final uri = Uri.parse('$baseUrl/api/v1/flowers/$cleanId');
+    final response = await _sendAuthenticatedRequest('GET', uri);
+    if (response.statusCode != 200) {
+      final errorBody = _parseErrorBody(response.body);
+      throw FloraApiException(
+        message: errorBody['message'] ?? 'Failed to retrieve flower profile (${response.statusCode})',
+        statusCode: response.statusCode,
+        errorCode: errorBody['error_code'],
+        retryable: response.statusCode >= 500,
+      );
+    }
+    final json = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    final local = plants.where((p) => p.id == cleanId).firstOrNull;
+    final rawSources = json['sources'] as List<dynamic>? ?? const [];
+    final sources = rawSources.map((raw) {
+      final item = Map<String, dynamic>.from(raw as Map);
+      return PlantSource(
+        (item['title'] ?? 'Botanical reference').toString(),
+        (item['url'] ?? '').toString(),
+      );
+    }).where((source) => source.url.isNotEmpty).toList();
+    return Plant(
+      id: cleanId,
+      name: (json['name'] ?? local?.name ?? cleanId).toString(),
+      scientific: (json['scientific'] ?? local?.scientific ?? '').toString(),
+      family: (json['family'] ?? local?.family ?? '').toString(),
+      category: (json['category'] ?? local?.category ?? 'Garden flowers').toString(),
+      symbol: (json['symbol'] ?? local?.symbol ?? '🌸').toString(),
+      description: (json['description'] ?? local?.description ?? '').toString(),
+      sections: Map<String, String>.from(json['sections'] as Map? ?? local?.sections ?? pending),
+      sources: sources.isNotEmpty ? sources : (local?.sources ?? const [pmraSource]),
     );
   }
 
