@@ -884,7 +884,9 @@ class ApiIdentificationService implements IdentificationService {
     final response = await client.identifyPlant(photoPath: photoPath);
 
     return IdentificationResult(
-      candidateIds: response.candidateIds,
+      candidateIds: response.candidateIds
+          .where((id) => plants.any((plant) => plant.id == id))
+          .toList(),
       isDemo: response.isDemo,
       safetyDisclaimer: response.safetyDisclaimer,
       providerId: response.providerId,
