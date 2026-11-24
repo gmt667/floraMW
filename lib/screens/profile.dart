@@ -48,7 +48,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ? 'Remove bookmark'
                     : 'Save plant',
                 onPressed: () =>
-                  guarded(context, () => widget.store.toggleSave(profilePlant.id)),
+                    guarded(
+                      context,
+                      () => widget.store.toggleSave(profilePlant.id),
+                    ),
                 icon: Icon(
                   widget.store.saved.contains(profilePlant.id)
                       ? Icons.bookmark
@@ -73,7 +76,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               FloraText(
                 profilePlant.scientific,
-                style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 16),
+                style: const TextStyle(
+                  fontStyle: FontStyle.italic,
+                  fontSize: 16,
+                ),
               ),
               Wrap(
                 spacing: 8,
@@ -95,7 +101,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   elevation: 0,
                   child: ExpansionTile(
                     title: FloraText(
-                      e.key == 'Identifying features' ? 'Flower features' : e.key,
+                      e.key == 'Identifying features'
+                          ? 'Flower features'
+                          : e.key,
                     ),
                     subtitle: FloraText(
                       [
@@ -136,8 +144,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute<void>(
-                    builder: (_) =>
-                      ReportScreen(store: widget.store, plantId: profilePlant.id),
+                    builder: (_) => ReportScreen(
+                      store: widget.store,
+                      plantId: profilePlant.id,
+                    ),
                   ),
                 ),
                 icon: const Icon(Icons.flag_outlined),
@@ -147,7 +157,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       );
-        },
+    },
   );
 }
 
