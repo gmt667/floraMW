@@ -454,10 +454,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       final client =
           widget.store.syncService?.client ??
           FloraApiClient(prefs: widget.store.prefs);
-      final remote = await client.getFlowers(
-        district: widget.store.district,
-        limit: 100,
-      );
+      // The selected district is a user preference, not evidence of a
+      // flower's verified occurrence. Keep the catalogue complete unless
+      // the user explicitly chooses a district filter in a future feature.
+      final remote = await client.getFlowers(limit: 100);
       if (mounted) {
         setState(() {
           _remotePlants = remote;
