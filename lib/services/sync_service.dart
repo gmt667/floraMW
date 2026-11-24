@@ -266,7 +266,7 @@ class SyncService {
             'createdAt': discovery.createdAt,
             'district': discovery.district,
             'note': discovery.note,
-            'isDemo': false,
+            'isDemo': discovery.isDemo,
           };
           final op = SyncOperation(
             opId: generateUuidV4(),
@@ -300,7 +300,7 @@ class SyncService {
         'createdAt': discovery.createdAt,
         'district': discovery.district,
         'note': discovery.note,
-        'isDemo': isDemo,
+        'isDemo': discovery.isDemo || isDemo,
       };
 
       final op = SyncOperation(
