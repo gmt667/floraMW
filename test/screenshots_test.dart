@@ -130,7 +130,9 @@ void main() {
     );
   });
 
-  testWidgets('Identify screen connection and consent entry point', (tester) async {
+  testWidgets(
+    'Identify screen connection and consent entry point',
+    (tester) async {
     final s = await prepare(tester);
     await tester.pumpWidget(FloraMWApp(store: s));
     await tester.pumpAndSettle();
@@ -139,8 +141,9 @@ void main() {
     expect(find.text('What’s blooming?'), findsOneWidget);
     expect(find.text('Identify this flower'), findsOneWidget);
     expect(find.textContaining('requires an internet connection'), findsOneWidget);
-    expect(find.byType(DropdownButtonFormField<DemoOutcome>), findsNothing);
-  });
+      expect(find.byType(DropdownButtonFormField<DemoOutcome>), findsNothing);
+    },
+  );
 
   testWidgets('Plant profile reference screenshot', (tester) async {
     final s = await prepare(tester);
