@@ -73,8 +73,9 @@ See [current validation results](docs/VALIDATION.md) and the [device acceptance 
 - `lib/main.dart`: startup, themes, onboarding, home shell and discovery.
 - `lib/preferences.dart`, `lib/locale_data.dart`: district/language setup and identifiers.
 - `lib/localization.dart`, `assets/translations.json`: translated text and fallback.
-- `lib/models.dart`: reference catalogue, journal models and unchanged demo identification interface.
-- `lib/store.dart`: local persistence and app-owned photo lifecycle.
+- `lib/models.dart`: reference catalogue, journal models and typed identification results.
+- `lib/store.dart`: local persistence, app-owned photo lifecycle and sync handoff.
+- `lib/services/sync_service.dart`: durable offline-first field-journal outbox.
 - `lib/screens/`: identify, profiles/corrections, journal, settings and language review.
 - `android/`, `ios/`: native frontend runners and permission/build configuration.
 - `test/`, `tool/`: automated checks, visual references and branding helper.
