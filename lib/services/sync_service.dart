@@ -538,6 +538,14 @@ class SyncService {
   }
 
   Future<SyncProcessResult> _internalProcessQueue() async {
+    if (_queue.isEmpty) {
+      return const SyncProcessResult(
+        processedCount: 0,
+        remainingCount: 0,
+        hasNetworkError: false,
+      );
+    }
+
     if (_isProcessing) {
       return SyncProcessResult(
         processedCount: 0,
