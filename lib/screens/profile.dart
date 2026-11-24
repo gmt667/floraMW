@@ -83,9 +83,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
               FloraText(
-            profilePlant.description,
-            style: const TextStyle(height: 1.6),
-          ),
+                profilePlant.description,
+                style: const TextStyle(height: 1.6),
+              ),
               const SizedBox(height: 12),
               const Notice(
                 'This reference profile is not a confirmed match for your photo. General summaries link to public sources; local knowledge and Malawi distribution still need field review.',
