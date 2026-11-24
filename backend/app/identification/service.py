@@ -86,7 +86,7 @@ logger = logging.getLogger("floramw.identification.service")
 # ---------------------------------------------------------------------------
 
 _LOW_CONFIDENCE_GUIDANCE_ACTIONS = [
-    "Photograph the whole plant, not just the flower.",
+    "Photograph the flower clearly, including its petals and visible leaves.",
     "Capture clear images of the leaves, including their undersides.",
     "Include flowers or fruits if present.",
     "Use natural daylight and avoid harsh shadows.",
@@ -95,9 +95,9 @@ _LOW_CONFIDENCE_GUIDANCE_ACTIONS = [
 ]
 
 _NO_MATCH_GUIDANCE_ACTIONS = [
-    "Take a new photograph that includes both leaves and flowers.",
+    "Take a new photograph that includes the flower and its visible leaves.",
     "Ensure the image is well-lit, in focus, and not blurred.",
-    "Capture the whole plant from a distance, then a close-up of key features.",
+    "Capture the full flower first, then a close-up of its petals and central features.",
     "Include any visible fruits, seeds, or seed pods.",
     "Consider consulting a local botanist for in-person identification.",
 ]
