@@ -1,18 +1,19 @@
 databases:
   - name: floramw-db
-    plan: basic-256mb
+    plan: free
     databaseName: floramw
     user: floramw
+    region: frankfurt
 
 services:
   - type: web
     name: floramw-api
     runtime: python
-    plan: starter
+    plan: free
+    region: frankfurt
     rootDir: backend
     buildCommand: pip install .
-    preDeployCommand: alembic upgrade head
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     autoDeploy: true
     envVars:
