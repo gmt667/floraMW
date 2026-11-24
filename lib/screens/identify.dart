@@ -79,7 +79,10 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
 
   Future<void> identify() async {
     if (path == null) {
-      setState(() => error = 'Choose a flower photo before requesting identification.');
+      setState(
+        () => error =
+            'Choose a flower photo before requesting identification.',
+      );
       return;
     }
     final allowed = await confirm(
@@ -195,7 +198,9 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
         const SizedBox(height: 24),
         const LinearProgressIndicator(),
         const SizedBox(height: 12),
-        const FloraText('Sending photo securely and checking possible matches…'),
+        const FloraText(
+          'Sending photo securely and checking possible matches…',
+        ),
         TextButton(
           onPressed: () {
             generation++;
@@ -211,6 +216,7 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
           child: const FloraText('Retry identification'),
         ),
       ],
+      if (result != null) Notice(result!.safetyDisclaimer),
       if (result != null && result!.candidateIds.isEmpty)
         EmptyState(
           Icons.search_off,
@@ -232,7 +238,6 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
               ? 'The backend is currently using a demonstration provider (${result!.providerId}). These candidates are examples and are not based on your photograph.'
               : 'These are possible matches returned by ${result!.providerId}. They are not confirmed identifications.',
         ),
-        Notice(result!.safetyDisclaimer),
         ...result!.candidateIds.map((id) {
           final p = plantById(id);
           return Column(
@@ -250,15 +255,21 @@ class _IdentifyScreenState extends State<IdentifyScreen> {
               TextButton.icon(
                 onPressed: () => guarded(
                   context,
-                  () => widget.store.addDiscovery(p.id, path, isDemo: result!.isDemo),
+                  () => widget.store.addDiscovery(
+            p.id,
+            path,
+            isDemo: result!.isDemo,
+          ),
                   success: result!.isDemo
                       ? 'Demonstration discovery saved with your photo.'
-                      : 'Possible match saved to your field journal.'
+                      : 'Possible match saved to your field journal.',
                 ),
                 icon: const Icon(Icons.add_circle_outline),
-                label: FloraText(result!.isDemo
-                    ? 'Save ${p.name} as demo discovery'
-                    : 'Save ${p.name} to field journal'),
+                label: FloraText(
+                  result!.isDemo
+                      ? 'Save ${p.name} as demo discovery'
+                      : 'Save ${p.name} to field journal',
+                ),
               ),
             ],
           );
