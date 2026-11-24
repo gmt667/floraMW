@@ -77,7 +77,7 @@ class GardenScreen extends StatelessWidget {
                     const EmptyState(
                       Icons.history,
                       'No discoveries yet',
-                      'Save a sample candidate from Identify to start a photo journal.',
+                      'Save a possible match from Identify to start a photo journal.',
                     ),
                   ...store.history.map((d) {
                     final p = plantById(d.plantId);
@@ -151,7 +151,7 @@ class _JournalScreenState extends State<JournalScreen> {
           const SizedBox(height: 20),
           FloraText(p.name, style: Theme.of(context).textTheme.headlineMedium),
           FloraText(
-            '${widget.discovery.createdAt.substring(0, 10)} · ${widget.discovery.district ?? 'District not set'} · ${widget.discovery.isDemo ? 'Demonstration identification' : 'Possible match'}',
+            '${widget.discovery.createdAt.substring(0, 10)} · ${widget.discovery.district ?? 'District not set'} · ${widget.discovery.isDemo ? 'DEMO' : 'POSSIBLE MATCH'}',
           ),
           const SizedBox(height: 20),
           TextField(
