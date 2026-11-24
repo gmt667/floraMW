@@ -8,13 +8,30 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import declarative_base
 from app.core.config import settings
 
+
+def _async_database_url(url: str) -> str:
+    """Normalize managed PostgreSQL URLs for SQLAlchemy's asyncpg driver.
+
+    Render and several managed database providers expose postgres:// or
+    postgresql:// connection strings. This application uses SQLAlchemy's
+    async engine, which requires the postgresql+asyncpg dialect.
+    """
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+asyncpg://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return url
+
+
+DATABASE_URL = _async_database_url(settings.DATABASE_URL)
+
 # Engine configuration
 connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
+if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    DATABASE_URL,
     echo=False,
     future=True,
     connect_args=connect_args,
@@ -27,12 +44,7 @@ async_engine = engine
 # Enforce foreign key constraints on SQLite connections
 @event.listens_for(engine.sync_engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
-    """Enforce foreign key integrity on SQLite database connections.
-
-    SQLite does not enforce foreign keys by default. This listener runs on each
-    new connection and sets PRAGMA foreign_keys = ON only when targeting SQLite,
-    safely ignoring PostgreSQL or other production dialects.
-    """
+    """Enforce foreign key integrity on SQLite connections."""
     if engine.dialect.name == "sqlite":
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
@@ -51,7 +63,7 @@ Base = declarative_base()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency that provides an async database session."""
+    """Provide an async database session."""
     async with async_session_factory() as session:
         try:
             yield session
