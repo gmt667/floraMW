@@ -232,7 +232,8 @@ class IdentificationResult {
   const IdentificationResult({
     required this.candidateIds,
     required this.isDemo,
-    this.safetyDisclaimer = 'Photo identification can be wrong. Confirm with a qualified botanist before using a plant.',
+    this.safetyDisclaimer =
+        'Photo identification can be wrong. Confirm with a qualified botanist before using a plant.',
     this.providerId = 'demo',
   });
 }
