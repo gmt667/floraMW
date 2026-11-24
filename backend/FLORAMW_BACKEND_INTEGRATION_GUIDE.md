@@ -491,13 +491,19 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 
 ---
 
-## 11. Remaining Integration Limitations
+## 11. Current Mobile Integration Status
 
-| Area | Limitation | Note |
+The Flutter client in `lib/services/api_client.dart` is integrated with the API contracts above.
+
+| Area | Current behavior | Remaining operational requirement |
 |---|---|---|
-| Offline identification | Flutter currently uses `DemoIdentificationService` exclusively. Real network identification requires a live backend and internet connectivity. | Pl@ntNet API key required for production. |
-| Catalogue images | `photo_asset` paths are Flutter bundle assets, not API-served URLs. The backend has no image-serving endpoint. | Bundle-side only. |
-| Identified record sync | `Discovery` records are currently stored locally in Flutter (`AppStore` via `SharedPreferences`). Backend history is independently persisted per authenticated device. | No sync layer yet. |
-| Token expiry | Anonymous tokens do not expire by design. If a token is lost (e.g. app reinstall), a new token must be issued via `POST /api/v1/auth/anonymous`. History is not migrated. | By design for offline-first. |
-| Multi-device | One token per `POST /api/v1/auth/anonymous` call. Multiple device tokens for one user are not currently supported. | Future consideration. |
+| Photo identification | Flutter requests explicit consent and uploads the selected image to `POST /api/v1/identifications`. It displays provider ID, demo status and the safety disclaimer. | Configure a real provider and valid server-side API key; test against the deployed host. |
+| Flower catalogue | Discover loads `GET /api/v1/flowers` and falls back to bundled reference data if offline. | Seed and publish the intended catalogue records. |
+| Flower profiles | Profile screens request `GET /api/v1/flowers/{flower_id}` and fall back to bundled content. | Keep server profile sections and source records reviewed and current. |
+| Field journal | Local-first create/update/delete outbox syncs metadata to `/api/v1/flowers/observations`. | Journal photo files remain on the device; binary photo upload/storage is not implemented. |
+| Botanical reports | Flutter submits reports to `POST /api/v1/flowers/reports`; failed submissions are saved as local drafts. | Provide an authenticated review/admin workflow for submitted reports. |
+| Identity | Anonymous device tokens are persisted by the app and attached to protected operations. | Tokens are device-specific; reinstalling creates a new identity. |
+| Release URL | Release builds require `FLORAMW_API_BASE_URL` to be a valid HTTPS origin. | Supply the actual production API hostname when building the release. |
+
+A code-level client integration is not proof that a deployed environment is reachable. Use the deployment checklist in `API_HANDOFF.md` to smoke-test health, authentication, catalogue, profile, identification, journal and reports against the production host.
 
