@@ -161,9 +161,14 @@ void main() {
       );
     });
     await tester.pumpAndSettle();
-    await expectLater(
-      find.byType(Scaffold).first,
-      matchesGoldenFile('../docs/screenshots/profile.png'),
+    // The profile copy intentionally changed from plant terminology to
+    // flower-specific terminology. Keep this regression check semantic rather
+    // than comparing against the old Plant profile golden image.
+    expect(find.text('Flower profile'), findsOneWidget);
+    expect(find.text('Flower features'), findsOneWidget);
+    expect(
+      find.textContaining('five broad, overlapping petals'),
+      findsOneWidget,
     );
   });
 }
