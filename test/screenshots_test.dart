@@ -145,10 +145,14 @@ void main() {
         findsOneWidget,
       );
       expect(find.byType(DropdownButtonFormField<DemoOutcome>), findsNothing);
+      await expectLater(
+        find.byType(Scaffold).first,
+        matchesGoldenFile('../docs/screenshots/identify.png'),
+      );
     },
   );
 
-  testWidgets('Plant profile reference screenshot', (tester) async {
+  testWidgets('Flower profile reference screenshot', (tester) async {
     final s = await prepare(tester);
     await tester.pumpWidget(FloraMWApp(store: s));
     await tester.pumpAndSettle();
@@ -171,6 +175,10 @@ void main() {
     // flower-specific terminology. Keep this regression check semantic rather
     // than comparing against the old Plant profile golden image.
     expect(find.text('Flower profile'), findsOneWidget);
+    await expectLater(
+      find.byType(Scaffold).first,
+      matchesGoldenFile('../docs/screenshots/profile.png'),
+    );
 
     // The feature section is an ExpansionTile and is collapsed by default.
     // Assert its catalogue content directly instead of searching for hidden
