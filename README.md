@@ -72,7 +72,7 @@ Photographs are bundled under their stated Creative Commons licences, with on-sc
 - Standalone model checks: `dart tool/check_models.dart`.
 - Asset/licence/native-metadata checks: `python3 tool/check_assets.py`.
 - GitHub Actions workflow: [frontend.yml](.github/workflows/frontend.yml). It verifies the frontend, builds a debug Android APK and prepares an unsigned iOS simulator build. It does not publish or change a backend.
-- Checked-in screenshots are Flutter test-rendered references, not physical-device screenshots: [Discover](docs/screenshots/discover.png), [Identify](docs/screenshots/identify.png), [Plant profile](docs/screenshots/profile.png).
+- Checked-in screenshots are Flutter test-rendered references, not physical-device screenshots (regenerated in CI and uploaded as the `FloraMW-UI-screenshots` artifact): [Discover](docs/screenshots/discover.png), [Identify](docs/screenshots/identify.png), [Flower profile](docs/screenshots/profile.png).
 
 See [current validation results](docs/VALIDATION.md) and the [device acceptance checklist](QA_CHECKLIST.md). Physical camera/gallery behavior, screen readers, representative low-end devices, iOS signing and App Store publication require separate device/platform validation.
 
