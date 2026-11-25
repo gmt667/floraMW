@@ -27,7 +27,14 @@ jobs:
       - name: Format Dart sources
         run: dart format lib test tool/check_models.dart
       - run: flutter analyze --no-pub
+      - name: Regenerate current UI screenshots
+        run: flutter test --no-pub --update-goldens test/screenshots_test.dart
       - run: flutter test --no-pub
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FloraMW-UI-screenshots
+          path: docs/screenshots/*.png
+          if-no-files-found: error
       - run: dart tool/check_models.dart
       - run: python3 tool/check_assets.py
   android:
