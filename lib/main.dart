@@ -665,7 +665,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         if (results.isEmpty)
           EmptyState(
             Icons.search_off,
-            'No plants found',
+            'No flowers found',
             'Try another name or reset your filters.',
             action: OutlinedButton(
               onPressed: () {
