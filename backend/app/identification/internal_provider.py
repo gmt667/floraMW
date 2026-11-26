@@ -83,7 +83,8 @@ class InternalModelProvider(IdentificationProvider):
             if len(inputs) != 1 or not outputs:
                 raise ValueError("Expected one input tensor and at least one output tensor.")
             shape = inputs[0]["shape"]
-            if len(shape) != 4 or int(shape[-1]) != 3 or int(outputs[0]["shape"][-1]) != len(self._labels):
+            expected_size = int(settings.INTERNAL_MODEL_INPUT_SIZE)
+            if len(shape) != 4 or int(shape[1]) != expected_size or int(shape[2]) != expected_size or int(shape[-1]) != 3 or int(outputs[0]["shape"][-1]) != len(self._labels):
                 raise ValueError(f"Tensor shape/label mismatch: input={shape}, output={outputs[0]['shape']}, labels={len(self._labels)}")
             self._input, self._output = inputs[0], outputs[0]
         except ImportError as exc:
@@ -104,7 +105,8 @@ class InternalModelProvider(IdentificationProvider):
             raise ProviderUnavailableError("TFLite interpreter is not initialized; verify the ML team artifact and runtime.")
         try:
             with Image.open(BytesIO(image.content)) as src:
-                pixels = np.asarray(src.convert("RGB").resize((224, 224), Image.Resampling.BILINEAR), dtype=np.float32)
+                input_size = int(settings.INTERNAL_MODEL_INPUT_SIZE)
+                pixels = np.asarray(src.convert("RGB").resize((input_size, input_size), Image.Resampling.BILINEAR), dtype=np.float32)
             # Exact MobileNetV2 preprocessing used in ml/src/train.py.
             tensor = np.expand_dims(pixels / 127.5 - 1.0, axis=0)
             dtype = self._input["dtype"]
@@ -123,7 +125,9 @@ class InternalModelProvider(IdentificationProvider):
                     scores = (scores - zero) * scale
             if scores.ndim != 1 or len(scores) != len(self._labels) or not np.isfinite(scores).all():
                 raise ValueError("Model returned invalid class scores.")
-            if np.any(scores < 0) or np.any(scores > 1) or not np.isclose(scores.sum(), 1.0, atol=0.05):
+            # The integration contract accepts finite scores in [0, 1] as-is.
+            # Apply softmax only when the exported model clearly returns logits.
+            if np.any(scores < 0) or np.any(scores > 1):
                 exp = np.exp(scores - scores.max())
                 scores = exp / exp.sum()
             indexes = np.argsort(scores)[::-1][:3]
