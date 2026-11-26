@@ -185,8 +185,59 @@ final plants = <Plant>[
     ],
   ),
 ];
-Plant plantById(String id) =>
-    plants.firstWhere((p) => p.id == id, orElse: () => plants.first);
+const modelScientificNames = <String, String>{
+  'arrowleaf_sida': 'Sida rhombifolia',
+  'blue_jacaranda': 'Jacaranda mimosifolia',
+  'blue_morning_glory': 'Ipomoea indica',
+  'blue_porterweed': 'Stachytarpheta jamaicensis',
+  'cape_leadwort': 'Plumbago auriculata',
+  'chinese_hibiscus': 'Hibiscus rosa-sinensis',
+  'common_blue_violet': 'Viola sororia',
+  'common_lantana': 'Lantana camara',
+  'creeping_woodsorrel': 'Oxalis corniculata',
+  'crown_flower': 'Calotropis gigantea',
+  'devils_backbone': 'Kalanchoe daigremontiana',
+  'egyptian_starcluster': 'Pentas lanceolata',
+  'flamingo_flower': 'Anthurium andraeanum',
+  'flaxleaf_fleabane': 'Erigeron bonariensis',
+  'florist_kalanchoe': 'Kalanchoe blossfeldiana',
+  'four_oclock_flower': 'Mirabilis jalapa',
+  'golden_dewdrops': 'Duranta erecta',
+  'great_bougainvillea': 'Bougainvillea spectabilis',
+  'horseweed': 'Erigeron canadensis',
+  'indian_shot': 'Canna indica',
+  'lilac_tasselflower': 'Emilia sonchifolia',
+  'madagascar_periwinkle': 'Catharanthus roseus',
+  'mexican_sunflower': 'Tithonia diversifolia',
+  'night_blooming_jasmine': 'Cestrum nocturnum',
+  'orchid_tree': 'Bauhinia variegata',
+  'paperflower': 'Bougainvillea glabra',
+  'peregrina': 'Jatropha integerrima',
+  'poinsettia': 'Euphorbia pulcherrima',
+  'royal_poinciana': 'Delonix regia',
+  'texas_lantana': 'Lantana urticoides',
+  'white_leadtree': 'Leucaena leucocephala',
+  'white_teak': 'Gmelina arborea',
+};
+
+Plant plantById(String id) {
+  for (final plant in plants) {
+    if (plant.id == id) return plant;
+  }
+  final scientific = modelScientificNames[id];
+  if (scientific == null) return plants.first;
+  return Plant(
+    id: id,
+    name: id.replaceAll('_', ' '),
+    scientific: scientific,
+    family: 'Pending taxonomy review',
+    category: 'Model-supported species',
+    symbol: '🌿',
+    description:
+        'This model-supported species record is awaiting editorial review. Do not treat a photo prediction as a confirmed identification.',
+    sections: pending,
+  );
+}
 
 class Discovery {
   final String id, plantId, createdAt;

@@ -1,11 +1,15 @@
-"""Database seed module for FloraMW Phase 1.
+"""Database seed module for FloraMW reference and model catalogue data.
 
 All data is transcribed verbatim from lib/models.dart and lib/locale_data.dart.
 No botanical descriptions, section keys or source URLs are invented here.
 """
 
+import json
+from pathlib import Path
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from app.core.config import settings
 from app.models.district import District
 from app.models.flower import Flower as Plant, FlowerSection as PlantSection, FlowerSource as PlantSource
 
@@ -331,6 +335,35 @@ PLANTS_DATA = [
     },
 ]
 
+# Model classes are real classifier labels, but their editorial profiles are
+# intentionally pending review. Keeping them in the catalogue prevents the
+# frontend/backend contract from dropping valid model predictions.
+if settings.IDENTIFICATION_PROVIDER in ("internal", "floramw-internal"):
+    _MODEL_LABEL_MAP = json.loads(
+        (Path(__file__).resolve().parents[1] / "identification" / "model_label_map.json")
+        .read_text(encoding="utf-8")
+    )
+    _EXISTING_IDS = {plant["id"] for plant in PLANTS_DATA}
+    for _label, _scientific in _MODEL_LABEL_MAP.items():
+        if _label in _EXISTING_IDS:
+            continue
+        PLANTS_DATA.append(
+            {
+                "id": _label,
+                "name": _label.replace("_", " ").title(),
+                "scientific": _scientific,
+                "family": "Pending taxonomy review",
+                "category": "Model-supported species",
+                "symbol": "🌿",
+                "description": (
+                    "This model-supported species record is awaiting editorial review. "
+                    "Do not treat a photo prediction as a confirmed identification."
+                ),
+                "sections": {**_PENDING},
+                "sources": [],
+            }
+        )
+
 # Expected section keys for all plants (the 8 pending + "Identifying features")
 # Note: not all plants have all 9 — marigold and hibiscus have 9; periwinkle/frangipani
 # override some pending keys. The backend stores whatever each plant defines.
@@ -359,7 +392,7 @@ async def seed_districts(session: AsyncSession) -> int:
 
 
 async def seed_plants(session: AsyncSession) -> int:
-    """Seed the 4 reference plants with sections and sources. Idempotent."""
+    """Seed reference plants and model-supported records idempotently."""
     count = 0
     for pdata in PLANTS_DATA:
         existing = await session.scalar(

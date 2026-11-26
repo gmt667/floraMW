@@ -900,7 +900,6 @@ class ApiIdentificationService implements IdentificationService {
 
     return IdentificationResult(
       candidateIds: response.candidateIds
-          .where((id) => plants.any((plant) => plant.id == id))
           .toList(),
       isDemo: response.isDemo,
       safetyDisclaimer: response.safetyDisclaimer,
