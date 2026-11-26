@@ -105,13 +105,14 @@ class Settings(BaseSettings):
     # Internal Botanical Identification Model Configuration (ML Team)
     # Mode can be 'mock' (test/dev simulation), 'artifact' (local model file),
     # 'service' (hosted inference microservice), or 'disabled'.
-    INTERNAL_MODEL_MODE: str = "mock"
+    INTERNAL_MODEL_MODE: str = "mock"  # Use artifact only after model and reviewed labels are installed
     INTERNAL_MODEL_ID: str = "floramw-internal-v1"
     INTERNAL_MODEL_VERSION: str = "0.1.0"
     INTERNAL_MODEL_ARTIFACT_PATH: str = ""
     INTERNAL_MODEL_SERVICE_URL: str = ""
     INTERNAL_MODEL_TIMEOUT_SECONDS: float = 5.0
     INTERNAL_MODEL_LABELS_PATH: str = ""
+    INTERNAL_MODEL_INPUT_SIZE: int = 224
 
     @model_validator(mode="after")
     def validate_cors_config(self) -> "Settings":
