@@ -22,6 +22,7 @@ dependencies = [
 [project.optional-dependencies]
 ml = [
     "tflite-runtime>=2.14.0; platform_system == \"Linux\" and platform_machine == \"x86_64\"",
+    "ai-edge-litert>=2.4.1; platform_system == \"Windows\" and platform_machine == \"AMD64\"",
 ]
 test = [
     "pytest>=8.0.0",

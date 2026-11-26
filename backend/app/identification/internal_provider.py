@@ -77,7 +77,10 @@ class InternalModelProvider(IdentificationProvider):
             try:
                 from tflite_runtime.interpreter import Interpreter
             except ImportError:
-                from tensorflow.lite import Interpreter
+                try:
+                    from ai_edge_litert.interpreter import Interpreter
+                except ImportError:
+                    from tensorflow.lite import Interpreter
             self._interpreter = Interpreter(model_path=str(model), num_threads=2)
             self._interpreter.allocate_tensors()
             inputs, outputs = self._interpreter.get_input_details(), self._interpreter.get_output_details()
