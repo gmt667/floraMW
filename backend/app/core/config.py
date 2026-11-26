@@ -84,12 +84,12 @@ class Settings(BaseSettings):
     # Identification provider selection.
     # Accepted values: "deterministic" (dev/test only), "plantnet" (production or dev), or future provider IDs.
     # Must never be "deterministic" in ENVIRONMENT=production.
-    IDENTIFICATION_PROVIDER: str = "deterministic"
+    IDENTIFICATION_PROVIDER: str = "disabled"
 
     # Explicit opt-in to allow the deterministic mock provider.
     # Defaults False in production. Set True in development/test environments.
     # An unset or False value in production causes identification to return 503.
-    ALLOW_MOCK_PROVIDER: bool = True
+    ALLOW_MOCK_PROVIDER: bool = False
 
     # Pl@ntNet Botanical Identification API Configuration
     # Official API: https://my.plantnet.org/
@@ -105,13 +105,14 @@ class Settings(BaseSettings):
     # Internal Botanical Identification Model Configuration (ML Team)
     # Mode can be 'mock' (test/dev simulation), 'artifact' (local model file),
     # 'service' (hosted inference microservice), or 'disabled'.
-    INTERNAL_MODEL_MODE: str = "mock"  # Use artifact only after model and reviewed labels are installed
+    INTERNAL_MODEL_MODE: str = "artifact"
     INTERNAL_MODEL_ID: str = "floramw-internal-v1"
     INTERNAL_MODEL_VERSION: str = "0.1.0"
     INTERNAL_MODEL_ARTIFACT_PATH: str = ""
     INTERNAL_MODEL_SERVICE_URL: str = ""
     INTERNAL_MODEL_TIMEOUT_SECONDS: float = 5.0
     INTERNAL_MODEL_LABELS_PATH: str = ""
+    INTERNAL_MODEL_LABEL_MAP_PATH: str = ""
     INTERNAL_MODEL_INPUT_SIZE: int = 224
 
     @model_validator(mode="after")

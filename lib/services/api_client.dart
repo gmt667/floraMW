@@ -871,29 +871,28 @@ class FloraApiClient {
 /// Adapter implementing the frontend [IdentificationService] seam to bridge
 /// [IdentifyScreen] to the FastAPI [FloraApiClient].
 ///
-/// Preserves the exact interface, demo behaviour, and offline safety.
+/// Bridges photo identification to the configured backend provider.
 class ApiIdentificationService implements IdentificationService {
   final FloraApiClient client;
-  final IdentificationService fallback;
-
+  final IdentificationService? fallback;
   ApiIdentificationService({
     required this.client,
-    IdentificationService? fallback,
-  }) : fallback = fallback ?? DemoIdentificationService();
+    this.fallback,
+  });
 
   @override
   Future<IdentificationResult> identify(
     String? photoPath,
     DemoOutcome outcome,
   ) async {
-    // If no photo was selected (e.g. "Explore demo without a photo"), delegate to demo fallback
     if (photoPath == null || photoPath.trim().isEmpty) {
-      return fallback.identify(null, outcome);
+      if (fallback != null) return fallback!.identify(null, outcome);
+      throw StateError('A flower photo is required for identification.');
     }
 
-    // Preserve demo dropdown outcomes for user inspection / testing
     if (outcome == DemoOutcome.noMatch || outcome == DemoOutcome.error) {
-      return fallback.identify(photoPath, outcome);
+      if (fallback != null) return fallback!.identify(photoPath, outcome);
+      throw StateError('Identification outcomes are returned by the backend.');
     }
 
     // Call live backend service with selected photo

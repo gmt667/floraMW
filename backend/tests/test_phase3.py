@@ -229,6 +229,15 @@ class TestInternalProviderServiceMode:
 
 
 class TestInternalProviderArtifactMode:
+    def test_release_labels_file_is_supported(self, tmp_path):
+        labels = tmp_path / "labels.txt"
+        labels.write_text("chinese_hibiscus\nmadagascar_periwinkle\n", encoding="utf-8")
+
+        assert InternalModelProvider._read_labels(labels) == {
+            0: "chinese_hibiscus",
+            1: "madagascar_periwinkle",
+        }
+
     async def test_artifact_mode_requires_artifact_path(self):
         with pytest.raises(ConfigurationError, match="INTERNAL_MODEL_ARTIFACT_PATH"):
             InternalModelProvider(mode="artifact")

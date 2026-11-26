@@ -41,6 +41,7 @@ class InternalModelProvider(IdentificationProvider):
         self._client = http_client
         self._interpreter = self._input = self._output = None
         self._labels: dict[int, str] = {}
+        self._label_map: dict[str, str] = {}
         if self.mode == "disabled":
             raise ProviderUnavailableError("Internal flower model is disabled.")
         if self.mode == "mock" and (settings.ENVIRONMENT == "production" or not settings.ALLOW_MOCK_PROVIDER):
@@ -62,16 +63,16 @@ class InternalModelProvider(IdentificationProvider):
         if not model.is_file() or model.suffix.lower() != ".tflite":
             raise ProviderUnavailableError(f"Missing or invalid TFLite artifact: {model}")
         if not labels.is_file():
-            raise ProviderUnavailableError(f"Missing model labels JSON: {labels}")
+            raise ProviderUnavailableError(f"Missing model labels file: {labels}")
         try:
-            raw = json.loads(labels.read_text(encoding="utf-8"))
-            if not isinstance(raw, dict) or not raw:
-                raise ValueError("labels must be a non-empty JSON object")
-            self._labels = {int(k): str(v).strip() for k, v in raw.items()}
+            self._labels = self._read_labels(labels)
+            map_path = str(getattr(settings, "INTERNAL_MODEL_LABEL_MAP_PATH", "") or "").strip()
+            if map_path:
+                self._label_map = self._read_label_map(Path(map_path).expanduser())
             if sorted(self._labels) != list(range(len(self._labels))) or any(not v for v in self._labels.values()):
                 raise ValueError("labels must have contiguous zero-based indexes and non-empty scientific names")
         except (OSError, ValueError, TypeError) as exc:
-            raise ConfigurationError(f"Invalid labels JSON: {exc}") from exc
+            raise ConfigurationError(f"Invalid model labels file: {exc}") from exc
         try:
             try:
                 from tflite_runtime.interpreter import Interpreter
@@ -91,6 +92,31 @@ class InternalModelProvider(IdentificationProvider):
             raise ProviderUnavailableError("Install the TFLite runtime (tflite-runtime) to run this model.") from exc
         except Exception as exc:
             raise ProviderUnavailableError(f"Unable to initialize TFLite model: {exc}") from exc
+
+    @staticmethod
+    def _read_labels(labels: Path) -> dict[int, str]:
+        """Read either the release's one-label-per-line file or JSON labels."""
+        text = labels.read_text(encoding="utf-8")
+        try:
+            raw = json.loads(text)
+        except json.JSONDecodeError:
+            entries = [line.strip() for line in text.splitlines() if line.strip()]
+            if not entries:
+                raise ValueError("labels must contain at least one non-empty line")
+            return dict(enumerate(entries))
+        if not isinstance(raw, dict) or not raw:
+            raise ValueError("JSON labels must be a non-empty object")
+        return {int(k): str(v).strip() for k, v in raw.items()}
+
+    @staticmethod
+    def _read_label_map(path: Path) -> dict[str, str]:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict) or not raw:
+            raise ValueError("label map must be a non-empty JSON object")
+        result = {str(key).strip(): str(value).strip() for key, value in raw.items()}
+        if any(not key or not value for key, value in result.items()):
+            raise ValueError("label map keys and values must be non-empty")
+        return result
 
     async def identify(self, image: ImagePayload) -> ProviderResult:
         started = time.perf_counter()
@@ -130,10 +156,11 @@ class InternalModelProvider(IdentificationProvider):
             if np.any(scores < 0) or np.any(scores > 1):
                 exp = np.exp(scores - scores.max())
                 scores = exp / exp.sum()
-            indexes = np.argsort(scores)[::-1][:3]
-            candidates = [ProviderCandidate(self._labels[int(i)], float(scores[i]),
+            indexes = np.argsort(scores)[::-1]
+            candidates = [ProviderCandidate(self._label_map.get(self._labels[int(i)], self._labels[int(i)]), float(scores[i]),
                 provider_taxon_id=str(int(i)),
-                notes="MobileNetV2 TFLite prototype; score is not calibrated accuracy.") for i in indexes]
+                notes="MobileNetV2 TFLite prototype; score is not calibrated accuracy.") for i in indexes
+                if not self._label_map or self._labels[int(i)] in self._label_map][:3]
         except Exception as exc:
             raise ProviderResponseError(f"TFLite inference failed: {exc}") from exc
         return ProviderResult(candidates, self.provider_id, self.model_version, {

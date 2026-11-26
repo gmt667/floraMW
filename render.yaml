@@ -12,7 +12,7 @@ services:
     plan: free
     region: frankfurt
     rootDir: backend
-    buildCommand: pip install .
+    buildCommand: pip install '.[ml]'
     startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     autoDeploy: true
@@ -34,7 +34,15 @@ services:
       - key: RATE_LIMIT_STORAGE
         value: memory
       - key: IDENTIFICATION_PROVIDER
-        value: plantnet
+        value: internal
+      - key: INTERNAL_MODEL_MODE
+        value: artifact
+      - key: INTERNAL_MODEL_ARTIFACT_PATH
+        value: ../ml/exports/mobilenetv2_flora.tflite
+      - key: INTERNAL_MODEL_LABELS_PATH
+        value: ../ml/exports/labels.txt
+      - key: INTERNAL_MODEL_LABEL_MAP_PATH
+        value: app/identification/model_label_map.json
       - key: ALLOW_MOCK_PROVIDER
         value: "false"
       - key: PLANTNET_API_KEY
