@@ -100,6 +100,8 @@ class InternalModelProvider(IdentificationProvider):
         return await self._infer_service(image, started)
 
     def _infer(self, image: ImagePayload, started: float) -> ProviderResult:
+        if getattr(self, "_interpreter", None) is None:
+            raise ProviderUnavailableError("TFLite interpreter is not initialized; verify the ML team artifact and runtime.")
         try:
             with Image.open(BytesIO(image.content)) as src:
                 pixels = np.asarray(src.convert("RGB").resize((224, 224), Image.Resampling.BILINEAR), dtype=np.float32)
