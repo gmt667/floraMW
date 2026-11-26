@@ -19,14 +19,16 @@ from app.identification.provider import (
 )
 
 logger = logging.getLogger("floramw.identification.internal")
-_MOCK = [ProviderCandidate("Hibiscus rosa-sinensis", 0.92,
-    common_names=["Chinese hibiscus"], family="Malvaceae", genus="Hibiscus",
-    notes="Simulated result; not a real model prediction.")]
+_MOCK_PREDICTIONS = [
+    {"scientific_name": "Hibiscus rosa-sinensis", "confidence": 0.92, "common_names": ["Chinese hibiscus", "Rose mallow"], "family": "Malvaceae", "genus": "Hibiscus", "notes": "Simulated result; not a real model prediction."},
+    {"scientific_name": "Catharanthus roseus", "confidence": 0.05, "common_names": ["Madagascar periwinkle"], "family": "Apocynaceae", "genus": "Catharanthus", "notes": "Simulated secondary candidate."},
+    {"scientific_name": "Delonix regia", "confidence": 0.02, "common_names": ["Flamboyant"], "family": "Fabaceae", "genus": "Delonix", "notes": "Simulated tertiary candidate."},
+]
 
 
 class InternalModelProvider(IdentificationProvider):
     """Loads a local .tflite artifact and returns ranked scientific-name candidates."""
-    provider_id = "floramw-internal-tflite"
+    provider_id = "internal"
 
     def __init__(self, mode: Optional[str] = None, model_id: Optional[str] = None,
                  model_version: Optional[str] = None, service_url: Optional[str] = None,
@@ -48,6 +50,10 @@ class InternalModelProvider(IdentificationProvider):
         if self.mode == "service" and not self.service_url:
             raise ConfigurationError("INTERNAL_MODEL_SERVICE_URL is required for service mode.")
         if self.mode == "artifact":
+            if not settings.INTERNAL_MODEL_ARTIFACT_PATH:
+                raise ConfigurationError("INTERNAL_MODEL_ARTIFACT_PATH is required for artifact mode.")
+            if not settings.INTERNAL_MODEL_LABELS_PATH:
+                raise ConfigurationError("INTERNAL_MODEL_LABELS_PATH is required for artifact mode.")
             self._load_artifact()
 
     def _load_artifact(self) -> None:
@@ -88,7 +94,7 @@ class InternalModelProvider(IdentificationProvider):
     async def identify(self, image: ImagePayload) -> ProviderResult:
         started = time.perf_counter()
         if self.mode == "mock":
-            return ProviderResult(list(_MOCK), self.provider_id, self.model_version, {"execution_mode": "mock"})
+            return ProviderResult([ProviderCandidate(**item) for item in _MOCK_PREDICTIONS], self.provider_id, self.model_version, {"execution_mode": "mock", "execution_duration_ms": int((time.perf_counter()-started)*1000)})
         if self.mode == "artifact":
             return self._infer(image, started)
         return await self._infer_service(image, started)
