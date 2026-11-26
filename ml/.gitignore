@@ -1,0 +1,21 @@
+# Virtual environment & Python cache
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Model weights, checkpoints, and logs
+checkpoints/
+logs/
+*.keras
+*.h5
+*.tflite
+
+# Local image/data dumps if accidentally placed inside ml/
+data/
+dataset/
+*.jpg
+*.jpeg
+*.png
+*.webp
